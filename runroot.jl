@@ -1,5 +1,5 @@
 require("src/root.jl")
-path = "TTJets_FullLept.root:trees/Events"
+path = "dat/TTJets_FullLept.root:trees/Events"
 #ex = :(@everywhere println("Worker=", myid()))
 @eval @everywhere println("path=", $(path))
 
@@ -14,7 +14,7 @@ path = "TTJets_FullLept.root:trees/Events"
 @everywhere read_n(n::Int64) = event.cos_theta[n]
 @everywhere (
     function read_range(entries::Range1{Int64})
-        println("Reading range ", entries)
+        #println("Reading range ", entries)
         return map(n -> event.cos_theta[n], entries)
     end
 )
@@ -25,23 +25,19 @@ function par()
     println("Calling parallel loop")
     n = length(tree)
     #split_to = nprocs()
-    cn = 50000
+    cn = 10000
     ranges = [chunk(cn, i, n) for i=1:convert(Int64, ceil(n/cn))]
-    println(ranges)
+    #println(ranges)
     ref = pmap(
         read_range, ranges
     )
     println("Waiting for loop to finish")
     ret = fetch(ref)
-    println(size(ret))
-    for r in ret
-        println(size(r))
-    end
-    return ret
+    return reduce(vcat, [], ret)
 end
 
 t = @elapsed r = par()
-#println(sum(r))
+println(sum(r))
 println("Processed ", length(tree)/t, " events/second.")
-println(size(r))
+println(length(r))
 println(length(tree))
