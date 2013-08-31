@@ -8,5 +8,6 @@ class:
 	clang++ src/class.cc -fPIC -shared -o libclass.dylib
 
 tree:
+	mkdir -p lib
 	clang++ src/root.cc `root-config --libs --ldflags --cflags` -fPIC -shared -o lib/libroot.dylib
 
