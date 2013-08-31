@@ -78,6 +78,9 @@ extern "C" {
 
     Array *ttree_get_branches(TTree *tree)
     {
+        tree->SetCacheSize(50 * 1024 * 1024);
+        tree->AddBranchToCache("*");
+        //tree->SetCacheLearnEntries(1000);
         TObjArray *brlist = tree->GetListOfBranches();
         int n_branches = brlist->GetEntries();
         TreeBranch *br_infos = (TreeBranch *)malloc(sizeof(TreeBranch) * n_branches);
