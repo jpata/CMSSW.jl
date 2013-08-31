@@ -5,6 +5,8 @@ typealias TBranch Ptr{Void}
 typealias TTree Ptr{Void}
 typealias VChar Ptr{Uint8}
 
+const libroot = "lib/libroot.dylib"
+
 immutable TreeBranch
     name::VChar
     dtype::VChar
@@ -43,7 +45,7 @@ end
 function getindex(b::Branch, n::Integer)
     assert(b != C_NULL, "TBranch was NULL")
     r = ccall(
-        (:tbranch_get_entry, "libroot"),
+        (:tbranch_get_entry, libroot),
         Cint, (TBranch, Cint), b.tbranch, n
     )
     return b.obj[1]
@@ -60,7 +62,7 @@ end
 function getindex(t::Tree, n::Integer)
     assert(t != C_NULL, "TTree was NULL")
     r = ccall(
-        (:ttree_get_entry, "libroot"),
+        (:ttree_get_entry, libroot),
         Cint, (TTree, Cint), t.tree, n
     )
     return map(x -> t.branches[x].obj[1], t.active_branches)
@@ -121,7 +123,7 @@ string(t::Tree) = string(t.filename, ":", t.treepath, t.tree)
 
 function tfile_open(fname::ASCIIString)
     tfile = ccall(
-        (:tfile_open, "libroot"),
+        (:tfile_open, libroot),
         TFile, (VChar, ), fname
     )
     return tfile
@@ -130,7 +132,7 @@ end
 function tfile_get(tfile::TFile, objname::ASCIIString)
     assert(tfile!=C_NULL, "TFile was 0")
     out = ccall(
-        (:tfile_get, "libroot"),
+        (:tfile_get, libroot),
         Ptr{Void}, (TFile, VChar), tfile, objname
     )
     return out
@@ -166,7 +168,7 @@ end
 function ttree_get_branches(ttree::TTree)
     assert(ttree!=C_NULL, "TFile was 0")
     out = ccall(
-        (:ttree_get_branches, "libroot"),
+        (:ttree_get_branches, libroot),
         Ptr{CArray}, (TTree, ), ttree
     )
     #println(out)
@@ -177,7 +179,7 @@ end
 function ttree_set_branch_address(ttree::TTree, b::Branch)
     assert(ttree!=C_NULL, "TTree was 0")
     out = ccall(
-        (:ttree_set_branch_address, "libroot"),
+        (:ttree_set_branch_address, libroot),
         Cint, (TTree, VChar, Ptr{Void}), ttree, b.name, b.obj
     )
     return out
@@ -187,7 +189,7 @@ end
 function ttree_set_branch_status(ttree::TTree, b::ASCIIString, status::Bool)
     assert(ttree!=C_NULL, "TTree was 0")
     out = ccall(
-        (:ttree_set_branch_status, "libroot"),
+        (:ttree_set_branch_status, libroot),
         Cint, (TTree, VChar, Bool), ttree, b, status
     )
     return out
@@ -198,7 +200,7 @@ ttree_set_branch_status(ttree::TTree, b::Branch, status::Bool) = ttree_set_branc
 function ttree_get_entries(ttree::TTree)
     assert(ttree!=C_NULL, "TTree was 0")
     out = ccall(
-        (:ttree_get_entries, "libroot"),
+        (:ttree_get_entries, libroot),
         Clong, (TTree,), ttree,
     )
     return out
