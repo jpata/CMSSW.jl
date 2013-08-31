@@ -37,8 +37,8 @@ end
     function read_range(entries::Range1{Int64}, rr::RemoteRef)
 
         #Copy the state from the parent
-        state = fetch(rr)
-        println("Got State: ", state)
+        state = deepcopy(fetch(rr))
+        #println("Got State: ", state)
 
         ret = map(n -> evloop(n, state), entries)
         return (ret, state)
