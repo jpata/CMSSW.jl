@@ -41,14 +41,16 @@ end
         #println("Got State: ", state)
 
         ret = map(n -> evloop(n, state), entries)
-        return (ret, state)
+        #ret = map(n -> (n, true), entries)
+        #println("Passed: ", count(x -> x[2], ret))
+        return state
     end
 end
 
 chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
 
 function par(njets)
-    println("Calling parallel loop")
+    #println("Calling parallel loop")
     n = length(tree)
     
     cn = 50000
@@ -56,7 +58,7 @@ function par(njets)
     ranges = [
         chunk(cn, i, n) for i=1:convert(Int64, ceil(n/cn))
     ]
-    println("Job split to ", length(ranges), " chunks between ", nprocs(), " processes.")
+    #println("Job split to ", length(ranges), " chunks between ", nprocs(), " processes.")
     rr = RemoteRef()
     put(rr, State(njets, 0.0))
     
@@ -64,25 +66,27 @@ function par(njets)
         n -> read_range(n, rr), ranges
     )
     
-    println("Waiting for loop to finish")
+    #println("Waiting for loop to finish")
     ret = fetch(ref)
-    states = [r[2] for r in ret]
-    println(states)
-    return [r[1] for r in ret]
+    return ret
 end
 
 rets = Any[]
-
-for i=1:5
-    println("njets = ", i)
-    t = @elapsed r = par(i)
-    println("Processed ", length(tree)/t, " events/second.")
-    push!(rets, r)
-    println("Ret size = ", size(r))
-    # for _r in r
-    #     println(size(_r))
-    # end
-    passed = map(_r -> count(x -> x[2], _r), r) |> sum 
-    failed = map(_r -> count(x -> !x[2], _r), r) |> sum 
-    println("passed=", passed, " failed=", failed)
+times = Any[]
+for j=1:5
+    for i=1:5
+        #println("njets = ", i)
+        t = @elapsed r = par(i)
+        println("Processed ", length(tree)/t, " events/second.")
+        push!(rets, r)
+        push!(times, length(tree)/t)
+        # for _r in r
+        #     println(size(_r))
+        # end
+        #passed = map(_r -> count(x -> x[2], _r), r) |> sum 
+        #failed = map(_r -> count(x -> !x[2], _r), r) |> sum 
+        #println("passed=", passed, " failed=", failed)
+    end
 end
+
+println(" mean=",mean(times), " std=", std(times))
