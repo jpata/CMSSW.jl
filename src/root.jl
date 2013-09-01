@@ -1,4 +1,4 @@
-import Base.convert, Base.getindex, Base.length, Base.pmap, Base.string
+import Base.convert, Base.length, Base.pmap, Base.string
 
 typealias TFile Ptr{Void}
 typealias TBranch Ptr{Void}
@@ -42,7 +42,7 @@ type Branch
         return new("None", Void, obj, convert(Ptr{Void}, 0))
     end
 end
-function getindex(b::Branch, n::Integer)
+function Base.getindex(b::Branch, n::Integer)
     assert(b != C_NULL, "TBranch was NULL")
     r = ccall(
         (:tbranch_get_entry, libroot),
@@ -58,8 +58,9 @@ type Tree
     treepath::String
     active_branches::Vector{ASCIIString}
     branches::Dict{Any, Any}
+    index::Int64
 end
-function getindex(t::Tree, n::Integer)
+function Base.getindex(t::Tree, n::Integer)
     assert(t != C_NULL, "TTree was NULL")
     r = ccall(
         (:ttree_get_entry, libroot),
@@ -90,11 +91,18 @@ function make_constructor(typ::Type, tree::Tree)
         #:(get($(symbol("t.branches")), $bn, Branch())))
     end
     #println(ex)
-    #eval(ex)
+    eval(ex)
     return ex
 end
 
-getindex(t::Tree, r::Range1{Int64}) = map(n -> t[n], r)
+#Gets the branch value corresponding to the current row of the Event
+# event: an Event instance
+# branch: a :symbol with the branch name
+macro get(event, branch)
+    :((getfield($event, $branch))[$event.tree.index])
+end
+
+Base.getindex(t::Tree, r::Range1{Int64}) = map(n -> t[n], r)
 
 length(t::Tree) = convert(Int64, ttree_get_entries(t.tree))
 
@@ -115,7 +123,10 @@ function Tree(path::ASCIIString)
         ttree_set_branch_address(ttree, b)
     end
     
-    return Tree(tfile, ttree, filename, treepath, active_branches, branches)
+    t = Tree(tfile, ttree, filename, treepath, active_branches, branches, 1)
+    evtype = construct_type(t)
+    make_constructor(evtype, t)
+    return t
 end
 
 Tree(t::Tree) = Tree(join([t.filename, t.treepath], ":"))
@@ -206,13 +217,6 @@ function ttree_get_entries(ttree::TTree)
     return out
 end
 
-# const tree = Tree("TTJets_FullLept.root:trees/Events")
-# construct_type(tree)
-# eval(make_constructor(Event, tree))
-# event = Event(tree)
-
-# n_entries = length(tree)
-
 type Histogram
     bin_entries::Vector{Int64}
     bin_contents::Vector{Float64}
@@ -233,90 +237,48 @@ function fill(h::Histogram, v::Number, w::Number=1.0)
     low = idx.start-1
     h.bin_entries[low] += 1
     h.bin_contents[low] += w
-    #println("Bin index: ", low, " low edge=", h.bin_edges[low])
 end
 
+chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
+chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
 
-immutable LoopState
-    hmupt::Histogram
-    hcos::Histogram
-    hcos_w1::Histogram
-end
+macro parloop(chunksize, loopexpr)
+    range = loopexpr.args[1].args[2]
+    iterator = loopexpr.args[1].args[1]
+    #println("Iteration symbol = ", iterator)
+    ranges = chunks(chunksize, eval(range).len)
+    #println(ranges, " ", length(ranges))
+    lex = loopexpr.args[2]
+    loopfnex = :(
+        function loop($iterator)
+            #println("Calling wrapped loop on ", $iterator)
+            #sleep(2)
+            return $lex
+        end
+    )
+    @everywhere eval($loopfnex)
+    println("Done compiling loop expression, mapping...")
 
-function run_loop()
-    function my_loop(n::Int64, tree::Tree, s::LoopState)
-        ev = tree[n]
-        return true
-    end
-    function my_loop2(n)
-        cos_theta::Float32 = tree.branches["cos_theta"][n]
-        mu_pt::Float32 = tree.branches["mu_pt"][n]
-        return cos_theta+mu_pt^2
-    end
 
-    function my_loop3(
-            n::Int64, event::Event,
-            s::LoopState
+    refs = RemoteRef[]
+    nr = 1
+    for r in ranges
+        nproc = mod1(nr, nprocs())
+        rr = remotecall(
+            nproc,
+            _r -> begin
+                nlooped = 0
+                for __r in _r
+                    if loop(__r)
+                        nlooped+=1
+                    end
+                end
+                return nlooped
+            end, r
         )
-
-        if !(event.n_muons[n] == 1 && event.n_eles[n] == 0)
-            return false
-        end
-        if !(event.n_jets[n] == 2 && event.n_tags[n] == 1)
-            return false
-        end
-        if !(event.mt_mu[n] > 50)
-            return false
-        end
-        if !(event.rms_lj[n] < 0.025)
-            return false
-        end
-        mu_pt = event.mu_pt[n]
-        for i=1:100
-            fill(s.hmupt, mu_pt)
-        end
-        cos_theta = event.cos_theta[n]
-        fill(s.hcos, cos_theta)
-        fill(s.hcos_w1, cos_theta, event.pu_weight[n])
-        return true
+        push!(refs, rr)
+        nr += 1
     end
-
-    state1 = LoopState(Histogram(20, 0, 100), Histogram(20, -1, 1), Histogram(20, -1, 1))
-    t = @elapsed ret = map(n -> my_loop3(n, event, state1), 1:n_entries)
-    println("Processed ", n_entries/t, " events/sec")
-
-    for (bn, b) in tree.branches
-        enable_branch(tree, bn)
-    end
-
-    state2 = LoopState(Histogram(20, 0, 100), Histogram(20, -1, 1), Histogram(20, -1, 1))
-    t = @elapsed ret = map(n -> my_loop(n, tree, state2), 1:n_entries)
-    println("Processed ", n_entries/t, " events/sec")
-
-    state3 = LoopState(Histogram(20, 0, 100), Histogram(20, -1, 1), Histogram(20, -1, 1))
-    t = @elapsed ret = map(n -> my_loop3(n, event, state3), 1:n_entries)
-    println("Processed ", n_entries/t, " events/sec")
-
-    return ret, state1, state2, state3
+    println("Parallel loop spawned with ", length(refs), " jobs")
+    return refs
 end
-
-function pmap_tree(f::Function, tree::Tree)
-    #On every subprocess, load parent file
-    pname = join([tree.filename, tree.treepath], ":")
-    @everywhere local_tree = Tree($(pname))
-
-    @everywhere println(string(local_tree))
-
-    # #Naive loop over all the lines in random order
-    # nlines = length(fi.filebuf)
-    # ret = fetch(pmap(
-    #     n -> (
-    #         (f(read_n(local_fi, n)), myid())
-    #     ), 1:nlines
-    # ))
-    # return ret
-end
-
-# pmap_tree(x->x, tree)
-
-#ret = run_loop()
