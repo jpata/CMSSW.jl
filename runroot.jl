@@ -5,8 +5,6 @@ path = "dat/test.root:trees/Events"
 @eval @everywhere println("path=", $(path))
 
 @eval @everywhere tree = Tree($path)
-@everywhere construct_type(tree)
-@everywhere eval(make_constructor(Event, tree))
 @everywhere event = Event(tree)
 @everywhere println("Tree = ", string(tree))
 
@@ -19,13 +17,14 @@ end
 
 @everywhere begin  
     function evloop(n::Int64, s::State)
+        event.tree.index = n
 
-        nj = event.n_jets[n]
+        nj::Int32 = @get event :n_jets
         if nj != s.n_jets
             return (n, false)
         end
 
-        cos_theta = event.cos_theta[n]
+        cos_theta::Float32 = @get event :cos_theta
         if cos_theta>-1.0
             s.accumulator += cos_theta
             return (n, true)
@@ -47,13 +46,11 @@ end
     end
 end
 
-chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
-
 function par(njets)
     #println("Calling parallel loop")
     n = length(tree)
     
-    cn = 50000
+    cn = 100000
     
     ranges = [
         chunk(cn, i, n) for i=1:convert(Int64, ceil(n/cn))
