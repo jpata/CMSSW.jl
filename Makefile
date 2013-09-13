@@ -9,5 +9,9 @@ class:
 
 tree:
 	mkdir -p lib
-	clang++ src/root.cc `root-config --libs --ldflags --cflags` -fPIC -shared -o lib/libroot.dylib
+	c++ src/root.cc `root-config --libs --ldflags --cflags` -fPIC -shared -o lib/libroot.dylib
+
+simple:
+	c++ src/simple.cc `root-config --libs --ldflags --cflags` -shared -fPIC -o simple
+
 
