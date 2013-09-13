@@ -60,49 +60,9 @@ type Tree
     branches::Dict{Any, Any}
     index::Int64
 end
-function Base.getindex(t::Tree, n::Integer)
-    assert(t != C_NULL, "TTree was NULL")
-    r = ccall(
-        (:ttree_get_entry, libroot),
-        Cint, (TTree, Cint), t.tree, n
-    )
-    return map(x -> t.branches[x].obj[1], t.active_branches)
-end
 
-function construct_type(t::Tree)
-    ex = :(
-        immutable Event
-            tree::Tree
-        end
-    )
-    for (bn, b) in t.branches
-        var = :($(symbol(string(bn)))::Branch)
-        push!(ex.args[3].args, var)
-    end
-    eval(ex)
-    return Event
-end
-function make_constructor(typ::Type, tree::Tree)
-    ex = :(
-        $(symbol(string(typ)))(t::Tree) = $(symbol(string(typ)))(t)
-    )
-    for (bn, b) in tree.branches
-        push!(ex.args[2].args, :($b))
-        #:(get($(symbol("t.branches")), $bn, Branch())))
-    end
-    #println(ex)
-    eval(ex)
-    return ex
-end
-
-#Gets the branch value corresponding to the current row of the Event
-# event: an Event instance
-# branch: a :symbol with the branch name
-macro get(event, branch)
-    :((getfield($event, $branch))[$event.tree.index])
-end
-
-Base.getindex(t::Tree, r::Range1{Int64}) = map(n -> t[n], r)
+Base.getindex(t::Tree, s::Symbol, n::Integer) = t.branches[string(s)][n]
+Base.getindex(t::Tree, s::Symbol) = t[s,t.index]
 
 length(t::Tree) = convert(Int64, ttree_get_entries(t.tree))
 
@@ -112,7 +72,10 @@ get_branches(t::TTree) = convert(TreeBranch, ttree_get_branches(t))
 get_branches(t::Tree) = get_branches(t.tree)
 
 function Tree(path::ASCIIString)
-    filename, treepath = split(path, ":")
+    spl = split(path, ":")
+    filename = join(spl[1:length(spl)-1], ":")
+    treepath = spl[length(spl)]
+
     tfile = tfile_open(filename)
     ttree = tfile_get(tfile, treepath)
     active_branches = Array(ASCIIString, 0)
@@ -124,18 +87,24 @@ function Tree(path::ASCIIString)
     end
     
     t = Tree(tfile, ttree, filename, treepath, active_branches, branches, 1)
-    evtype = construct_type(t)
-    make_constructor(evtype, t)
+    #finalizer(t, x->println("Finalizing ", string(x)))
     return t
 end
 
-Tree(t::Tree) = Tree(join([t.filename, t.treepath], ":"))
-string(t::Tree) = string(t.filename, ":", t.treepath, t.tree)
+string(t::Tree) = string(t.filename, ":", t.treepath)
 
 function tfile_open(fname::ASCIIString)
     tfile = ccall(
         (:tfile_open, libroot),
         TFile, (VChar, ), fname
+    )
+    return tfile
+end
+
+function tfile_close(tfile::TFile)
+    tfile = ccall(
+        (:tfile_close, libroot),
+        Void, (TFile, ), tfile
     )
     return tfile
 end
@@ -232,7 +201,7 @@ type Histogram
         )
     end
 end
-function fill(h::Histogram, v::Number, w::Number=1.0)
+function fill!(h::Histogram, v::Number, w::Number=1.0)
     idx = searchsorted(h.bin_edges, v)
     low = idx.start-1
     h.bin_entries[low] += 1
@@ -242,43 +211,22 @@ end
 chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
 chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
 
-macro parloop(chunksize, loopexpr)
-    range = loopexpr.args[1].args[2]
-    iterator = loopexpr.args[1].args[1]
-    #println("Iteration symbol = ", iterator)
-    ranges = chunks(chunksize, eval(range).len)
-    #println(ranges, " ", length(ranges))
-    lex = loopexpr.args[2]
-    loopfnex = :(
-        function loop($iterator)
-            #println("Calling wrapped loop on ", $iterator)
-            #sleep(2)
-            return $lex
-        end
-    )
-    @everywhere eval($loopfnex)
-    println("Done compiling loop expression, mapping...")
+function process_parallel(func::Function, treepath::ASCIIString, n_procs::Integer=nprocs())
+    @eval @everywhere println("Loading tree: ", $treepath)
+    @eval @everywhere local_tree = Tree($treepath)
+    chunksize = int(length(local_tree) / n_procs)
+    ranges = chunks(chunksize, length(local_tree))
 
-
-    refs = RemoteRef[]
     nr = 1
+    refs = RemoteRef[]
     for r in ranges
         nproc = mod1(nr, nprocs())
         rr = remotecall(
             nproc,
-            _r -> begin
-                nlooped = 0
-                for __r in _r
-                    if loop(__r)
-                        nlooped+=1
-                    end
-                end
-                return nlooped
-            end, r
+            r -> map(n -> func(n, local_tree), r), r
         )
         push!(refs, rr)
         nr += 1
     end
-    println("Parallel loop spawned with ", length(refs), " jobs")
-    return refs
+    return (length(local_tree), refs)
 end
