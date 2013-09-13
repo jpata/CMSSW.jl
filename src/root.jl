@@ -109,6 +109,14 @@ function tfile_close(tfile::TFile)
     return tfile
 end
 
+function ttree_set_cache(tree::TTree, size)
+    tfile = ccall(
+        (:ttree_set_cache, libroot),
+        Void, (TTree, Cint), tree, size
+    )
+    return tfile
+end
+
 function tfile_get(tfile::TFile, objname::ASCIIString)
     assert(tfile!=C_NULL, "TFile was 0")
     out = ccall(
@@ -211,16 +219,16 @@ end
 chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
 chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
 
-function process_parallel(func::Function, treepath::ASCIIString, n_procs::Integer=nprocs())
-    @eval @everywhere println("Loading tree: ", $treepath)
-    @eval @everywhere local_tree = Tree($treepath)
+function process_parallel(func::Function, tree_ex, n_procs::Integer=nprocs())
+    @everywhere local_tree = eval($tree_ex)
     chunksize = int(length(local_tree) / n_procs)
     ranges = chunks(chunksize, length(local_tree))
 
     nr = 1
     refs = RemoteRef[]
     for r in ranges
-        nproc = mod1(nr, nprocs())
+        #nproc = mod1(nr, min(n_procs, nprocs()))
+        nproc = rand(1:min(n_procs, nprocs()))
         rr = remotecall(
             nproc,
             r -> map(n -> func(n, local_tree), r), r

@@ -1,5 +1,4 @@
-
-
+#include <TSystem.h>
 #include <TTree.h>
 #include <TLeaf.h>
 #include <TFile.h>
@@ -52,7 +51,7 @@ extern "C" {
 
     void *tfile_open(const char *name)
     {
-        TFile *tf = new TFile(name);
+        TFile *tf = TFile::Open(name);
         if (tf->IsZombie())
         {
             return 0;
@@ -72,12 +71,16 @@ extern "C" {
     {
         return tfile->Get(name);
     }
+    
+    void *ttree_set_cache(TTree *tree, unsigned int size) 
+    {
+        tree->SetCacheSize(size * 1024 * 1024);
+        tree->AddBranchToCache("*");
+        tree->SetCacheLearnEntries(100);
+    }
 
     Array *ttree_get_branches(TTree *tree)
     {
-        tree->SetCacheSize(100 * 1024 * 1024);
-        tree->AddBranchToCache("*");
-        tree->SetCacheLearnEntries(1000);
         TObjArray *brlist = tree->GetListOfBranches();
         int n_branches = brlist->GetEntries();
         TreeBranch *br_infos = (TreeBranch *)malloc(sizeof(TreeBranch) * n_branches);
