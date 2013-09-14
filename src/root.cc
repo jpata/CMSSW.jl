@@ -71,12 +71,12 @@ extern "C" {
     {
         return tfile->Get(name);
     }
-    
-    void *ttree_set_cache(TTree *tree, unsigned int size) 
+
+    void *ttree_set_cache(TTree *tree, unsigned int size, unsigned int learn)
     {
         tree->SetCacheSize(size * 1024 * 1024);
         tree->AddBranchToCache("*");
-        tree->SetCacheLearnEntries(100);
+        tree->SetCacheLearnEntries(learn);
     }
 
     Array *ttree_get_branches(TTree *tree)
