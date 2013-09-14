@@ -109,10 +109,10 @@ function tfile_close(tfile::TFile)
     return tfile
 end
 
-function ttree_set_cache(tree::TTree, size)
+function ttree_set_cache(tree::TTree, size, learn)
     tfile = ccall(
         (:ttree_set_cache, libroot),
-        Void, (TTree, Cint), tree, size
+        Void, (TTree, Cint, Cint), tree, size, learn
     )
     return tfile
 end
@@ -194,32 +194,41 @@ function ttree_get_entries(ttree::TTree)
     return out
 end
 
-type Histogram
+immutable Histogram
     bin_entries::Vector{Int64}
     bin_contents::Vector{Float64}
     bin_edges::Vector{Float64}
-    function Histogram(n::Integer, low::Number, high::Number)
-        bins = linspace(low, high, n+1)
-        unshift!(bins, -inf(Float64))
-        n_contents = size(bins,1)
-        return new(
-            zeros(Int64, (n_contents, )),
-            zeros(Float64, (n_contents, )),
-            bins
-        )
-    end
 end
-function fill!(h::Histogram, v::Number, w::Number=1.0)
+
+function Histogram(n::Integer, low::Number, high::Number)
+    bins = linspace(low, high, n+1)
+    unshift!(bins, -inf(Float64))
+    n_contents = size(bins,1)
+    return Histogram(
+        zeros(Int64, (n_contents, )),
+        zeros(Float64, (n_contents, )),
+        bins
+    )
+end
+
+Histogram(h::Histogram) = Histogram(h.bin_entries, h.bin_contents, h.bin_edges)
+
+function fill!(h::Histogram, v::Real, w::Real=1.0)
     idx = searchsorted(h.bin_edges, v)
     low = idx.start-1
     h.bin_entries[low] += 1
     h.bin_contents[low] += w
 end
+function +(h1::Histogram, h2::Histogram)
+    @assert h1.bin_edges == h2.bin_edges
+    h = Histogram(h1.bin_entries + h2.bin_entries, h1.bin_contents+h2.bin_contents, h1.bin_edges)
+    return h
+end
 
 chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
 chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
 
-function process_parallel(func::Function, tree_ex, n_procs::Integer=nprocs())
+function process_parallel(func::Function, tree_ex, n_procs::Integer=nprocs(), args...)
     @everywhere local_tree = eval($tree_ex)
     chunksize = int(length(local_tree) / n_procs)
     ranges = chunks(chunksize, length(local_tree))
@@ -231,7 +240,7 @@ function process_parallel(func::Function, tree_ex, n_procs::Integer=nprocs())
         nproc = rand(1:min(n_procs, nprocs()))
         rr = remotecall(
             nproc,
-            r -> map(n -> func(n, local_tree), r), r
+            r -> map(n -> func(n, local_tree, args...), r), r
         )
         push!(refs, rr)
         nr += 1
