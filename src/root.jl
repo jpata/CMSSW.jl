@@ -19,7 +19,17 @@ immutable CArray
     n_elems::Cint
 end
 
-type_table = {"Float_t"=>Float32, "Int_t"=>Int32}
+type_table = {
+    "Float_t"=>Float32,
+    "Int_t"=>Int32,
+}
+
+defaults_table = {
+    Float32 => float("nan"),
+    Int32 => -999,
+    Vector{Float32} => Float32[],
+}
+
 type Branch
     name::String
     dtype::Type
@@ -29,12 +39,12 @@ type Branch
         dt = bytestring(tb.dtype)
         if !haskey(type_table, dt)
             t = Void
-            println("No type defined for ", dt)
+            error("No type defined for $dt")
         else
             t = type_table[dt]
         end
         arr = Array(t, 1)
-        arr[1] = -999
+        arr[1] = defaults_table[t]
         return new(bytestring(tb.name), t::Type, arr, tb.pbranch)
     end
     function Branch()
@@ -44,11 +54,14 @@ type Branch
 end
 function Base.getindex(b::Branch, n::Integer)
     assert(b != C_NULL, "TBranch was NULL")
+    println("Object before: $(b.obj)")
     r = ccall(
         (:tbranch_get_entry, libroot),
         Cint, (TBranch, Cint), b.tbranch, n
     )
-    return b.obj[1]
+    println("Done TTree::GetEntry")
+    #println("Object after: $(b.obj)")
+    #return b.obj
 end
 
 type Tree
@@ -78,14 +91,15 @@ function Tree(path::ASCIIString)
 
     tfile = tfile_open(filename)
     ttree = tfile_get(tfile, treepath)
+    ttree_get_entry(ttree, 0)
     active_branches = Array(ASCIIString, 0)
     branches = {
         x.name::ASCIIString => x::Branch for x in get_branches(ttree)
     }
     for (brname, b) in branches
-        ttree_set_branch_address(ttree, b)
+        retval = ttree_set_branch_address(ttree, b)
+        println("$brname: $retval")
     end
-    
     t = Tree(tfile, ttree, filename, treepath, active_branches, branches, 1)
     #finalizer(t, x->println("Finalizing ", string(x)))
     return t
@@ -117,6 +131,14 @@ function ttree_set_cache(tree::TTree, size, learn)
     return tfile
 end
 
+function ttree_get_entry(tree::TTree, n)
+    ret = ccall(
+        (:ttree_get_entry, libroot),
+        Cint, (TTree, Cint), tree, n
+    )
+    return ret
+end
+
 function tfile_get(tfile::TFile, objname::ASCIIString)
     assert(tfile!=C_NULL, "TFile was 0")
     out = ccall(
@@ -144,8 +166,14 @@ end
 function convert(typ::Type, arr::CArray)
     p = pointer(TreeBranch, arr.start)
     struct_arr = pointer_to_array(p, (convert(Int64, arr.n_elems),))
-    out = map(x->Branch(x), struct_arr)
+    out = Branch[]
     for s in struct_arr
+        try
+            br = Branch(s)
+            push!(out, br)
+        catch e
+            println(e)
+        end
         c_free(s.name)
         c_free(s.dtype)
     end
@@ -193,6 +221,7 @@ function ttree_get_entries(ttree::TTree)
     )
     return out
 end
+
 
 immutable Histogram
     bin_entries::Vector{Int64}
