@@ -2,7 +2,8 @@
 #include <TSystem.h>
 #include <TTree.h>
 #include <DataFormats/FWLite/interface/Event.h>
-#include "DataFormats/FWLite/interface/Handle.h"
+#include <DataFormats/FWLite/interface/ChainEvent.h>
+#include <DataFormats/FWLite/interface/Handle.h>
 #include <FWCore/FWLite/interface/AutoLibraryLoader.h>
 
 #include <SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h>
@@ -17,7 +18,7 @@
 template <typename T>
 void *new_handle()
 {
-    return new edm::Handle<T>();
+    return new fwlite::Handle<T>();
 }
 
 template <typename T>
@@ -27,10 +28,11 @@ void *new_wrapper()
 }
 
 template <typename T>
-const T *get_by_label(fwlite::Event *ev, void *handle, const edm::InputTag *itag)
+const T *get_by_label(fwlite::ChainEvent *ev, void *handle, const edm::InputTag *itag)
 {
-    edm::Handle<T> &h = *((edm::Handle<T> *)handle);
-    ev->getByLabel(*itag, h);
+    fwlite::Handle<T> &h = *((fwlite::Handle<T> *)handle);
+    //ev->getByLabel(*itag, h);
+    h.getByLabel(*ev, itag->label().c_str(), itag->instance().c_str(), itag->process().c_str());
     return h.isValid() ? h.product() : 0;
 }
 
@@ -49,17 +51,27 @@ extern "C" {
         return new edm::InputTag(label, instance, process);
     }
 
-    void *events(TFile *file)
+    // void *new_event(TFile *file)
+    // {
+    //     return new fwlite::Event(file);
+    // }
+
+    void *new_chain_event(const char **fnames, unsigned int n_fnames)
     {
-        return new fwlite::Event(file);
+        std::vector<std::string> fn;
+        for (unsigned int i = 0; i < n_fnames; i++)
+        {
+            fn.push_back(fnames[i]);
+        }
+        return new fwlite::ChainEvent(fn);
     }
 
-    bool events_to(fwlite::Event *ev, long n)
+    bool events_to(fwlite::ChainEvent *ev, long n)
     {
         return ev->to(n);
     }
 
-    bool events_size(fwlite::Event *ev)
+    long events_size(fwlite::ChainEvent *ev)
     {
         return ev->size();
     }
@@ -69,7 +81,7 @@ extern "C" {
         return new_handle<std::vector<float>>();
     }
 
-    Array *get_branches(fwlite::Event *ev)
+    Array *get_branches(fwlite::ChainEvent *ev)
     {
         std::vector<const char *> *names = new std::vector<const char *>();
         for (auto & e : ev->getBranchDescriptions())
@@ -83,7 +95,7 @@ extern "C" {
         return out;
     }
 
-    const void *get_by_label_vfloat(fwlite::Event *ev, void *handle, const edm::InputTag *label)
+    const void *get_by_label_vfloat(fwlite::ChainEvent *ev, void *handle, const edm::InputTag *label)
     {
         return get_by_label<std::vector<float>>(ev, handle, label);
     }
