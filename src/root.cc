@@ -3,7 +3,7 @@
 #include <TLeaf.h>
 #include <TFile.h>
 #include <cstdlib>
-#include "util.hh"
+
 #include <iostream>
 
 struct TreeBranch
@@ -13,17 +13,20 @@ struct TreeBranch
     TBranch *branch;
 };
 
+struct Array
+{
+    void *start;
+    int size;
+    int n_elems;
+};
+
+
 #define LogInfo std::cout << "root.cc: "
 extern "C" {
     int ttree_set_branch_address(TTree *ttree, const char *name, void *p)
     {
-        LogInfo << "Branch address for " << name << " set to " << p << std::endl;
+        //LogInfo << "Branch address for " << name << " set to " << p << std::endl;
         return ttree->SetBranchAddress(name, p);
-    }
-
-    void tbranch_set_address(TBranch *tbranch, void *p)
-    {
-        tbranch->SetAddress(p);
     }
 
     void ttree_set_branch_status(TTree *ttree, const char *name, bool status)
@@ -107,15 +110,6 @@ extern "C" {
         out->size = sizeof(TreeBranch);
         out->n_elems = n_branches;
 
-        return out;
-    }
-
-    Array *convert_vector(std::vector<float> *v)
-    {
-        Array *out = (Array *)malloc(sizeof(Array));
-        out->start = v->size() > 0 ? &(v->at(0)) : 0;
-        out->size = sizeof(float);
-        out->n_elems = v->size();
         return out;
     }
 
