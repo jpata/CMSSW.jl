@@ -3,7 +3,7 @@ all: tree
 fwtree:
 	cd src/CMSSW*; scram b
 	cd ..
-	cp src/CMSSW_5_3_11_FWLITE/lib/osx107_amd64_gcc462/libFWTree.dylib ./
+	#cp src/CMSSW_5_3_11_FWLITE/lib/osx107_amd64_gcc462/libFWTree.dylib ./
 	# c++ -shared -fPIC `root-config --cflags --ldflags --libs` src/tree.cpp -o lib/libtree.dylib
 
 class:
