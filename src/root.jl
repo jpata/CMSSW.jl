@@ -257,31 +257,30 @@ end
 chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
 chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
 
-macro onworkers(workers, ex)
+macro onworkers(targets, ex)
     quote
         @sync begin
-            for w in $workers
-                remotecall(w, ()->eval(Main,$(Expr(:quote,ex))))
+            for w in $targets
+                #println("Executing on $w")
+                #remotecall(w, ()->eval(Main,$(Expr(:quote,ex))))
+                #remotecall(w, () -> @eval $(Expr(:quote,ex)))
+                @spawnat w eval($(Expr(:quote,ex)))
             end
         end
     end
 end
 
-function process_parallel(func::Function, tree_ex::Symbol, workers::Vector{Integer}, args...)
-    @onworkers workers local_tree = eval($tree_ex)
-    ntree = @fetchfrom workers[1] length(local_tree)
-    chunksize = int(ntree / length(workers))
+function process_parallel(func::Function, tree_ex::Symbol, targets::Vector{Int64}, args...)
+    @eval @onworkers $targets local_tree = eval($tree_ex)
+    ntree = @fetchfrom targets[1] length(local_tree)
+    chunksize = int(ntree / length(targets))
     ranges = chunks(chunksize, ntree)
 
     nr = 1
     refs = RemoteRef[]
     for r in ranges
-        nproc = workers[mod1(nr, length(workers))]
+        nproc = targets[mod1(nr, length(targets))]
         println("submitting chunk $(r.start):$(r.len) on worker $nproc")
-        @spawnat nproc let
-            
-        end
-
         rr = remotecall(
             nproc,
             _r -> map(n -> func(n, local_tree, args...), _r), r
