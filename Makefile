@@ -3,12 +3,15 @@ fwtree:
 	mkdir -p lib
 	cd src/CMSSW; scram b vclean; scram b
 	#cd ..
+	rm -f lib/libFWTree*
 	cp src/CMSSW/lib/$(SCRAM_ARCH)/libFWTree.* lib/
 
 tree: src/root.cc
 	echo "Making tree";
 	mkdir -p lib
-	c++ src/root.cc `root-config --libs --ldflags --cflags` -fPIC -shared -o lib/libroot.so
+	rm -f lib/libroot*
+	c++ src/root.cc `root-config --libs --ldflags --cflags` -O4 -fPIC -shared -o lib/libroot.dylib
+	ln -s lib/libroot.dylib lib/libroot.so
 
 all: tree fwtree
 
