@@ -11,6 +11,6 @@
 <use name="PhysicsTools/SelectorUtils"/>
 
 <library name="FWTree" file="libFWTree.cpp">
-    <Flags CXXFLAGS="-O3 -shared -fPIC -I/Users/joosep/Documents/ROOT.jl/src"/>
+    <Flags CXXFLAGS="-O3 -shared -fPIC -I/home/joosep/.julia/ROOT.jl/src/"/>
 </library>
 

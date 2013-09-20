@@ -1,6 +1,7 @@
 using ROOT
 
-testfile = joinpath(Pkg.dir(), "ROOT.jl", "test", "test_edm.root")
+testfile = joinpath(Pkg.dir(), "ROOT.jl", "dat", "test_edm.root")
+
 show(testfile)
 
 println()
@@ -24,3 +25,4 @@ end
 println("processing speed: $(length(ev)/el) events/second")
 
 assert(abs(sum(muon_pts) - 2.4204095e6) < 1.0)
+println("pts: ", join(muon_pts[1:3], ", "))
