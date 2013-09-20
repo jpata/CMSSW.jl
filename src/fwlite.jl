@@ -1,13 +1,17 @@
+const libfwlite = joinpath(Pkg.dir(), "ROOT.jl", "src", "CMSSW", "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
+const libroot = joinpath(Pkg.dir(), "ROOT.jl", "lib", "libroot")
 
-include("bareroot.jl")
-
-const libfwlite = joinpath(Pkg.dir(), "ROOT.jl", "lib", "libFWTree")
+immutable CArray
+    start::Ptr{Ptr{Void}}
+    size::Cint
+    n_elems::Cint
+end
 
 try
     dlopen(libfwlite)
 catch e
     println("could not load $libfwlite: $e")
-    path = joinpath(Pkg.dir(), "ROOT.jl", "src", "CMSSW_5_3_11_FWLITE")
+    path = joinpath(Pkg.dir(), "ROOT.jl", "src", "CMSSW")
     warn("did you do 'cmsenv' CMSSW in $path ?")
     rethrow(e)
 end
@@ -155,7 +159,7 @@ end
 function to_jl(p::Ptr{Void}, T::Type)
 
     parr = ccall(
-            (:convert_vector, bareroot.libroot),
+            (:convert_vector, libroot),
             Ptr{CArray}, (Ptr{Void}, ), p
     )
     arr = unsafe_load(parr)

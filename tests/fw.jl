@@ -10,10 +10,6 @@ isfile(testfile) || download("http://cms.hep.kbfi.ee/~joosep/test_edm.root", tes
 ev = Events(testfile)
 assert(length(ev) == 297977)
 
-# for t in ev.tags
-#     println(t)
-# end
-
 muon_pts = Float32[]
 el = @elapsed for i=1:length(ev)
     to!(ev, i)

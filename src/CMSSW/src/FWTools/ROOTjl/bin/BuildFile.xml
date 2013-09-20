@@ -10,7 +10,15 @@
 <use name="PhysicsTools/Utilities"/>
 <use name="PhysicsTools/SelectorUtils"/>
 
-<library name="FWTree" file="libFWTree.cpp">
+<library name="fwlevents_jl" file="fwlevents_jl.cc">
     <Flags CXXFLAGS="-O4 -shared -fPIC -I$(CMSSW_BASE)/../"/>
 </library>
+
+<library name="fwlevents_c" file="fwlevents_c.cc">
+    <Flags CXXFLAGS="-O4 -shared -fPIC -I$(CMSSW_BASE)/../"/>
+</library>
+
+<bin name="simple" file="simple.cc">
+    <Flags CXXFLAGS="-O4 -lfwlevents_c -fPIC -I$(CMSSW_BASE)/../"/>
+</bin>
 

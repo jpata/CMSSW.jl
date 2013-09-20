@@ -1,64 +1,12 @@
-#include <iostream>
-
-#include <TSystem.h>
-#include <TROOT.h>
-#include <TTree.h>
-
-//#include <DataFormats/FWLite/interface/Event.h>
-#include <DataFormats/FWLite/interface/ChainEvent.h>
-#include <DataFormats/FWLite/interface/Handle.h>
-#include <FWCore/FWLite/interface/AutoLibraryLoader.h>
-
-//#include <SimDataFormats/GeneratorProducts/interface/GenEventInfoProduct.h>
-//#include <DataFormats/MuonReco/interface/Muon.h>
-//#include <PhysicsTools/FWLite/interface/TFileService.h>
-//#include <FWCore/ParameterSet/interface/ProcessDesc.h>
-//#include <FWCore/PythonParameterSet/interface/PythonProcessDesc.h>
-//#include <DataFormats/Common/interface/MergeableCounter.h>
-
+#include "fwlite.hh"
 #include "util.hh"
 
-template <typename T>
-void *new_handle()
-{
-    return new fwlite::Handle<T>();
-}
-
-template <typename T>
-void *new_wrapper()
-{
-    return new edm::Wrapper<T>();
-}
-
-template <typename T>
-const T *get_by_label(fwlite::ChainEvent *ev, void *handle, const edm::InputTag *itag)
-{
-    fwlite::Handle<T> &h = *((fwlite::Handle<T> *)handle);
-    //ev->getByLabel(*itag, h);
-    h.getByLabel(*ev, itag->label().c_str(), itag->instance().c_str(), itag->process().c_str());
-    return h.isValid() ? h.product() : 0;
-}
-
-
 extern "C" {
-
-    void initialize()
-    {
-        gSystem->Load( "libFWCoreFWLite" );
-        AutoLibraryLoader::enable();
-        gSystem->Load("libDataFormatsFWLite");
-        std::cout << "ROOT+FWLite initialized: " << gROOT->GetVersion() << std::endl;
-    }
 
     void *new_inputtag(const char *label, const char *instance, const char *process)
     {
         return new edm::InputTag(label, instance, process);
     }
-
-    // void *new_event(TFile *file)
-    // {
-    //     return new fwlite::Event(file);
-    // }
 
     void *new_chain_event(const char **fnames, unsigned int n_fnames)
     {

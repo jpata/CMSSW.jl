@@ -16,9 +16,6 @@ tree: src/root.cc
 all: tree fwtree
 
 simple:
-	c++ src/simple.cc `root-config --libs --ldflags --cflags` -shared -fPIC -o simple
-
-class:
-	clang++ src/class.cc -fPIC -shared -o libclass.dylib
+	c++ src/simple.cc -std=c++0x `root-config --libs --ldflags --cflags` -I$(CMSSW_RELEASE_BASE)/src/ -Lsrc/CMSSW/lib/$(SCRAM_ARCH)/ -lfwlevents_c -lboost_rt -fPIC -o simple
 
 
