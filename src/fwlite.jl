@@ -2,7 +2,7 @@ module fwlite
 
 include("bareroot.jl")
 
-const libfwlite = "lib/libFWTree.dylib"
+const libfwlite = joinpath(Pkg.dir(), "lib", "libFWTree.dylib")
 
 export fwlite_initialize
 export InputTag
