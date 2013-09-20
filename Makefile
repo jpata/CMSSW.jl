@@ -13,12 +13,13 @@
 #	c++ src/root.cc `root-config --libs --ldflags --cflags` -O4 -fPIC -shared -o lib/libroot.dylib
 #	ln -s lib/libroot.dylib lib/libroot.so
 
-setup:
-	./setup.sh
-
 all:
 	cd src/CMSSW; scram b vclean; scram b -k || scram b; scram b	
 	cd ../..
+
+setup:
+	./setup.sh
+
 
 c_test:
 	time src/CMSSW/bin/$(SCRAM_ARCH)/simple
