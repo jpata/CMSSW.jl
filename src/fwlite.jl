@@ -92,7 +92,7 @@ type Events
             try
                 events.tags[(label, instance, process)] = (InputTag(label, instance, process), Handle(dtype))
             catch e
-                warn("tag $dtype, $label, $instance, $process not created: $e")
+                #warn("tag $dtype, $label, $instance, $process not created: $e")
             end
         end
         return events
