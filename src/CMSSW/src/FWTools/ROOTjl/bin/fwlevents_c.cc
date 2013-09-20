@@ -1,7 +1,11 @@
 #include "fwlite.hh"
 
+#include <TStopwatch.h>
+
 void do_loop(State *state)
 {
+    TStopwatch sw;
+    sw.Start()
     fw_event *main_events = state->main_events;
     unsigned long n_events = main_events->size();
     for (unsigned long i = 0; i < n_events; i++)
@@ -22,5 +26,7 @@ void do_loop(State *state)
             continue;
         }
     }
-    cout << "Events processed: " << n_events << endl;
+    float dt = sw.RealTime();
+    float speed = n_events / dt;
+    cout << "Processed N=" << n_events << " events, speed=" << speed << " events/second" << endl;
 }
