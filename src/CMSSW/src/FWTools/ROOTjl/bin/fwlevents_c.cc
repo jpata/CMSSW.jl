@@ -5,7 +5,8 @@
 void do_loop(State *state)
 {
     TStopwatch sw;
-    sw.Start()
+    sw.Start();
+
     fw_event *main_events = state->main_events;
     unsigned long n_events = main_events->size();
     for (unsigned long i = 0; i < n_events; i++)
