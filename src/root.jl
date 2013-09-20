@@ -1,5 +1,5 @@
 module ROOT
     #include("bareroot.jl")
     include("fwlite.jl")
-    export fwlite
+    fwlite_initialize()
 end

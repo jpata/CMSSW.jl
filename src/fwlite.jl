@@ -1,12 +1,30 @@
-module fwlite
 
 include("bareroot.jl")
 
-const libfwlite = joinpath(Pkg.dir(), "lib", "libFWTree.dylib")
+const libfwlite = joinpath(Pkg.dir(), "ROOT.jl", "lib", "libFWTree")
 
-export fwlite_initialize
-export InputTag
-export Events
+try
+    dlopen(libfwlite)
+catch e
+    println("could not load $libfwlite: $e")
+    path = joinpath(Pkg.dir(), "ROOT.jl", "src", "CMSSW_5_3_11_FWLITE")
+    warn("did you do 'cmsenv' CMSSW in $path ?")
+    rethrow(e)
+end
+
+for symb in [:vfloat]
+    eval(quote
+        $(symbol(string("get_by_label_", symb)))(ev::Ptr{Void}, h::Ptr{Void}, t::Ptr{Void}) = ccall(
+            ($(string("get_by_label_", symb)), libfwlite),
+            Ptr{Void}, (Ptr{Void}, Ptr{Void}, Ptr{Void}), ev, h, t
+        )
+
+        $(symbol(string("new_handle_", symb)))() = ccall(
+            ($(string("new_handle_", symb)), libfwlite),
+            Ptr{Void}, ()
+        )
+    end)
+end
 
 function fwlite_initialize()
     out = ccall(
@@ -15,8 +33,6 @@ function fwlite_initialize()
     )
     return out
 end
-
-fwlite_initialize()
 
 immutable InputTag
     p::Ptr{Void}
@@ -31,22 +47,55 @@ immutable InputTag
     )
 end
 
+immutable Handle
+    p::Ptr{Void}
+    t::Type
+end
+
+const type_table = {
+    :floats => Vector{Cfloat}
+}
+
+function Handle(t::Type)
+    if t==Vector{Cfloat}
+        hp = new_handle_vfloat()
+        return Handle(hp, t)
+    else
+        error("Handle not defined for type $t")
+    end
+end
+
+Handle(s::Symbol) = Handle(type_table[s])
+
 type Events
     fnames::Vector{String}
     ev::Ptr{Void}
-    handles::Dict{InputTag, Ptr{Void}}
-    tags::Dict{(Symbol, Symbol), InputTag}
+    tags::Dict{(Symbol, Symbol, Symbol), (InputTag, Handle)}
     index::Int64
 
-    function Events(fnames::Vector{String})
+    function Events(fnames::Vector{ASCIIString})
         ev = ccall(
         (:new_chain_event, libfwlite),
         Ptr{Void}, (Ptr{Ptr{Uint8}}, Cuint), fnames, length(fnames)
         )
-        return new(fnames, ev, Dict{InputTag, Ptr{Void}}(), Dict{(Symbol, Symbol), InputTag}(), 0)
+        events = new(
+            fnames, ev,
+            Dict{(Symbol, Symbol, Symbol), (InputTag, Handle)}(),
+            0
+        )
+
+        for (dtype, label, instance, process) in get_branches(events)
+            try
+                events.tags[(label, instance, process)] = (InputTag(label, instance, process), Handle(dtype))
+            catch e
+                warn("tag $dtype, $label, $instance, $process not created: $e")
+            end
+        end
+        return events
     end
 end
 
+Events(fname::ASCIIString) = Events([fname])
 function get_branches(ev::Events)
     parr = ccall(
         (:get_branches, libfwlite),
@@ -65,6 +114,13 @@ function get_branches(ev::Events)
     return ret
 end
 
+function where(ev::Events)
+    return ccall(
+        (:events_fileindex, libfwlite),
+        Clong, (Ptr{Void}, ), ev.ev
+    ) + 1
+end
+
 function Base.length(ev::Events)
     return ccall(
         (:events_size, libfwlite),
@@ -72,109 +128,44 @@ function Base.length(ev::Events)
     )
 end
 
-function Base.getindex(ev::Events, n::Integer)
+function to!(ev::Events, n::Integer)
     scanned = ccall(
             (:events_to, libfwlite),
             Bool, (Ptr{Void}, Clong), ev.ev, n-1
     )
     scanned || error("failed to scan to event $n")
     ev.index = n
-    return ev
 end
 
-function Base.getindex(ev::Events, s::InputTag)
-    if !haskey(ev.handles, s)
-        ev.handles[s] = ccall(
-            (:new_handle_vfloat, libfwlite),
-            Ptr{Void}, ()
-        )
+function Base.getindex(ev::Events, label::Symbol, instance::Symbol, process::Symbol)
+    tag, handle = ev.tags[(label, instance, process)]
+
+    ret = C_NULL
+    if handle.t == Vector{Cfloat}
+        ret = get_by_label_vfloat(ev.ev, handle.p, tag.p)
+    else
+        error("get_by_label_ not defined for handle $handle")
     end
-    ret = ccall(
-        (:get_by_label_vfloat, libfwlite),
-        Ptr{Void}, (Ptr{Void}, Ptr{Void}, Ptr{Void}), ev.ev, ev.handles[s], s.p
-    )
-    return ret |> to_vector
+
+    ret != C_NULL || error("product $tag not found")
+
+    return to_jl(ret, Cfloat)
 end
 
-function Base.getindex(ev::Events, label::Symbol, instance::Symbol)
-    if !haskey(ev.tags, (label, instance))
-        ev.tags[(label, instance)] = InputTag(label, instance, symbol(""))
-    end
-    return ev[ev.tags[(label, instance)]]
-end
-
-function to_vector(p::Ptr{Void})
-    p != C_NULL || error("product not found")
+function to_jl(p::Ptr{Void}, T::Type)
 
     parr = ccall(
-            (:convert_vector, libroot),
+            (:convert_vector, bareroot.libroot),
             Ptr{CArray}, (Ptr{Void}, ), p
     )
     arr = unsafe_load(parr)
-    jarr = deepcopy(pointer_to_array(convert(Ptr{Cfloat}, arr.start), (convert(Int64, arr.n_elems),)))
+    jarr = deepcopy(pointer_to_array(convert(Ptr{T}, arr.start), (convert(Int64, arr.n_elems),)))
     parr!= C_NULL && c_free(parr)
     return jarr
 end
 
-end #module
-
-
-# ev = Events(
-#     open(readall, "input.txt") |> split
-# )
-
-# immutable Lepton
-#     pt::Float32
-#     eta::Float32
-#     phi::Float32
-#     iso::Float32
-# end
-
-# hist_pt = Histogram(10, 0, 200)
-
-# leptons = Lepton[]
-# function loop(n::Integer, events::Events)
-#     global hist_pt::Histogram
-#     global leptons
-
-#     curleptons = Lepton[]
-
-#     events[n]
-#     iso = events[:allMuonsNTP, :relIso]
-#     pt = events[:allMuonsNTP, :Pt]
-#     eta = events[:allMuonsNTP, :Eta]
-#     phi = events[:allMuonsNTP, :Phi]
-
-#     for m in zip(pt, eta, phi, iso)
-#         mu = Lepton(m...)
-#         #push!(curleptons, mu)
-#         #fill!(hist_pt, mu.pt)
-#         push!(leptons, mu)
-#     end
-#     #println("N=$(length(curleptons)), isos={",join([l.iso for l in curleptons], ","), "}")
-#     return true
-# end
-
-# println("Workers: $(join(workers(), ", "))")
-# rworkers = workers()
-# symb = :ev
-# @eval @onworkers $rworkers local_tree = eval($symb)
-
-# println("number of events: ", length(ev))
-
-# @onworkers rworkers println("onworker $(myid()): $local_tree")
-# nevents, refs = process_parallel(loop, :ev, rworkers)
-
-# println("Submitted, waiting...")
-# el = @elapsed for r in refs
-#     wait(r)
-# end
-# speed = nevents/el
-# println("Done: $speed events/sec")
-
-# for w in rworkers
-#     #hist = @fetchfrom w eval(:hist_pt)
-#     #println(hist)
-#     leptons = @fetchfrom w eval(:leptons)
-#     println(leptons)
-# end
+export fwlite_initialize
+export InputTag
+export Events
+export to!
+export where

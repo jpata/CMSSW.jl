@@ -1,24 +1,27 @@
 import Base.convert, Base.length, Base.pmap, Base.string
 
+immutable CArray
+    start::Ptr{Ptr{Void}}
+    size::Cint
+    n_elems::Cint
+end
+
 module bareroot
- 
+
+import ROOT.CArray
+export libroot
+
 typealias TFile Ptr{Void}
 typealias TBranch Ptr{Void}
 typealias TTree Ptr{Void}
 typealias VChar Ptr{Uint8}
 
-const libroot = "lib/libroot.dylib"
+const libroot = joinpath(Pkg.dir(), "ROOT.jl", "lib", "libroot")
 
 immutable TreeBranch
     name::VChar
     dtype::VChar
     pbranch::TBranch
-end
-
-immutable CArray
-    start::Ptr{Ptr{Void}}
-    size::Cint
-    n_elems::Cint
 end
 
 type_table = {
@@ -224,6 +227,7 @@ function ttree_get_entries(ttree::TTree)
     return out
 end
 
+end #module
 
 immutable Histogram
     bin_entries::Vector{Int64}
@@ -292,5 +296,3 @@ function process_parallel(func::Function, tree_ex::Symbol, targets::Vector{Int64
     end
     return (ntree, refs)
 end
-
-end #module
