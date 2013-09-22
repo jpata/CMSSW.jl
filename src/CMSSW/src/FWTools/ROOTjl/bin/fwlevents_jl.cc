@@ -52,13 +52,11 @@ extern "C" {
         return out;
     }
 
-    const void *get_by_label_vfloat(fwlite::ChainEvent *ev, void *handle, const edm::InputTag *label)
+    const void *get_by_label_vfloat(
+        const fwlite::ChainEvent *ev,
+        fwlite::Handle<vector<float>> *handle,
+        const edm::InputTag *label)
     {
         return get_by_label<std::vector<float>>(ev, handle, label);
-    }
-
-    const void *handle_product(void *wrapper)
-    {
-        return ((edm::Wrapper<TObject> *)wrapper)->product();
     }
 }

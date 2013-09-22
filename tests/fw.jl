@@ -8,29 +8,54 @@ isfile(testfile) || download("http://cms.hep.kbfi.ee/~joosep/test_edm.root", tes
 ev = Events(testfile)
 assert(length(ev) == 297977)
 
-muon_pts = Float32[]
-
 #Define the muon source (this can be done programmatically and shortened/generalized considerably)
-mu_pts(ev::Events) = ev[:goodSignalMuonsNTupleProducer, :Pt, :STPOLSEL2]
-
 sum_pt = 0.0
 
+#Profile.init(10^7, 0.00001)
+
+immutable TagHandle
+    tag::InputTag
+    handle::Handle
+end
+
+const mu_pt = TagHandle(ev.tags[(:goodSignalMuonsNTupleProducer, :Pt, :STPOLSEL2)]...)
+const mu_eta = TagHandle(ev.tags[(:goodSignalMuonsNTupleProducer, :Eta, :STPOLSEL2)]...)
+
+tags = [TagHandle(y...) for (x,y) in ev.tags]
+
+function get(ev::Events, th::TagHandle, copy::Bool=false)
+    arr = ev[th.tag, th.handle]
+    return (copy ? deepcopy(arr) : arr)
+end
+
 #Loop over all the events, do a timing test as well
-el = @elapsed for i=1:length(ev)
+do_loop(ev::Events) = for i=1:length(ev)
+
+    global sum_pt::Float64
+    global mu_pt, mu_eta
 
     #Move to the i-th event (! means that the parameters are modified in-place, as is the case for Events)
     to!(ev, i)
 
+    mupt::Vector{Float32} = get(ev, mu_pt, false)
+    mueta::Vector{Float32} = get(ev, mu_eta, false)
+
     #Loop over the muons
-    for pt in mu_pts(ev)
+    for pt in mupt
         sum_pt += pt
-        #push!(muon_pts, pt)
     end
+    id = where(ev)
+    #println("$(id.run):$(id.lumi):$(id.event)")
 end
 
-println("processed N=$(length(ev)) events, speed=$(length(ev)/el) events/second")
+prfile = open("prof.txt", "w")
+for i=1:5
+    el = @elapsed do_loop(ev)
+    println("speed=", length(ev)/el)
+end
 
-#assert(abs(sum(muon_pts) - 2.4204095e6) < 1.0)
+#Profile.print(prfile, format=:flat, cols=160, C=true)
 
-#println("pts: ", join(muon_pts[1:3], ", "))
-println("sum_pt = ", sum_pt)
+#Profile.print(C=true)
+#println("processed N=$(length(ev)) events, speed=$(length(ev)/el) events/second")
+#println("sum_pt = ", sum_pt)

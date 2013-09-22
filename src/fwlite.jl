@@ -16,27 +16,6 @@ catch e
     rethrow(e)
 end
 
-for symb in [:vfloat]
-    eval(quote
-        $(symbol(string("get_by_label_", symb)))(ev::Ptr{Void}, h::Ptr{Void}, t::Ptr{Void}) = ccall(
-            ($(string("get_by_label_", symb)), libfwlite),
-            Ptr{Void}, (Ptr{Void}, Ptr{Void}, Ptr{Void}), ev, h, t
-        )
-
-        $(symbol(string("new_handle_", symb)))() = ccall(
-            ($(string("new_handle_", symb)), libfwlite),
-            Ptr{Void}, ()
-        )
-    end)
-end
-
-function fwlite_initialize()
-    out = ccall(
-        (:initialize, libfwlite),
-        Void, (),
-    )
-    return out
-end
 
 immutable InputTag
     p::Ptr{Void}
@@ -49,6 +28,35 @@ immutable InputTag
             Ptr{Void}, (Ptr{Uint8}, Ptr{Uint8}, Ptr{Uint8}), string(label), string(instance), string(process)
         ), label, instance, process
     )
+end
+
+for symb in [:vfloat]
+    eval(quote
+        $(symbol(string("get_by_label_", symb)))(ev::Ptr{Void}, h::Ptr{Void}, t::InputTag) = ccall(
+            ($(string("get_by_label_", symb)), libfwlite),
+            Ptr{Void}, (Ptr{Void}, Ptr{Void}, Ptr{Void}), ev, h,
+            t.p
+        )
+
+        $(symbol(string("new_handle_", symb)))() = ccall(
+            ($(string("new_handle_", symb)), libfwlite),
+            Ptr{Void}, ()
+        )
+    end)
+end
+
+get_by_label_vfloat1(ev::Ptr{Void}, h::Ptr{Void}, t::InputTag) = ccall(
+    (:get_by_label_vfloat, libfwlite),
+    Ptr{Void}, (Ptr{Void}, Ptr{Void}, Ptr{Void}), ev, h,
+    t.p
+)
+
+function fwlite_initialize()
+    out = ccall(
+        (:initialize, libfwlite),
+        Void, (),
+    )
+    return out
 end
 
 immutable Handle
@@ -143,33 +151,39 @@ end
 
 function Base.getindex(ev::Events, label::Symbol, instance::Symbol, process::Symbol)
     tag, handle = ev.tags[(label, instance, process)]
-
-    ret = C_NULL
-    if handle.t == Vector{Cfloat}
-        ret = get_by_label_vfloat(ev.ev, handle.p, tag.p)
-    else
-        error("get_by_label_ not defined for handle $handle")
-    end
-
-    ret != C_NULL || error("product $tag not found")
-
-    return to_jl(ret, Cfloat)
+    return ev[tag, handle]
 end
 
-function to_jl(p::Ptr{Void}, T::Type)
+function Base.getindex(ev::Events, tag::InputTag, handle::Handle)
+    ret::Ptr{Void} = get_by_label_vfloat1(ev.ev, handle.p, tag)
+    return to_jl(ret)
+end
+
+
+function to_jl(p::Ptr{Void})
 
     parr = ccall(
-            (:convert_vector, libroot),
+            (:convert_vector, libfwlite),
             Ptr{CArray}, (Ptr{Void}, ), p
     )
     arr = unsafe_load(parr)
-    jarr = deepcopy(pointer_to_array(convert(Ptr{T}, arr.start), (convert(Int64, arr.n_elems),)))
+    jarr = pointer_to_array(convert(Ptr{Cfloat}, arr.start), (convert(Int64, arr.n_elems),))
     parr!= C_NULL && c_free(parr)
     return jarr
 end
 
+immutable EventID
+    run::Cuint
+    lumi::Cuint
+    event::Cuint
+end
+
+where(ev::Events) = ccall(
+    (:get_event_id, libfwlite), EventID, (Ptr{Void},), ev.ev
+)
+
 export fwlite_initialize
-export InputTag
+export InputTag, Handle, EventID
 export Events
 export to!
 export where

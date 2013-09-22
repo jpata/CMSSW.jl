@@ -31,3 +31,12 @@ void do_loop(State *state)
     float speed = n_events / dt;
     cout << "Processed N=" << n_events << " events, speed=" << speed << " events/second" << endl;
 }
+
+const vector<float> *get_vfloat(fwlite::Handle<vector<float>> *h, fwlite::ChainEvent *ev, const label &l)
+{
+    h->getByLabel(
+        *ev, get<0>(l), get<1>(l), get<2>(l)
+    );
+
+    return h->isValid() ? h->product() : 0;
+}
