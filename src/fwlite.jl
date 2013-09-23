@@ -79,16 +79,22 @@ end
 
 Handle(s::Symbol) = Handle(type_table[s])
 
+immutable Source
+    tag::InputTag
+    handle::Handle
+end
+
+
 type Events
     fnames::Vector{String}
     ev::Ptr{Void}
     tags::Dict{(Symbol, Symbol, Symbol), (InputTag, Handle)}
     index::Int64
 
-    function Events(fnames::Vector{ASCIIString})
+    function Events(fnames)
         ev = ccall(
         (:new_chain_event, libfwlite),
-        Ptr{Void}, (Ptr{Ptr{Uint8}}, Cuint), fnames, length(fnames)
+        Ptr{Void}, (Ptr{Ptr{Uint8}}, Cuint), convert(Vector{ASCIIString}, fnames), length(fnames)
         )
         events = new(
             fnames, ev,
@@ -98,7 +104,7 @@ type Events
 
         for (dtype, label, instance, process) in get_branches(events)
             try
-                events.tags[(label, instance, process)] = (InputTag(label, instance, process), Handle(dtype))
+                #events.tags[(label, instance, process)] = (InputTag(label, instance, process), Handle(dtype))
             catch e
                 #warn("tag $dtype, $label, $instance, $process not created: $e")
             end
@@ -108,6 +114,7 @@ type Events
 end
 
 Events(fname::ASCIIString) = Events([fname])
+
 function get_branches(ev::Events)
     parr = ccall(
         (:get_branches, libfwlite),
@@ -159,6 +166,9 @@ function Base.getindex(ev::Events, tag::InputTag, handle::Handle)
     return to_jl(ret)
 end
 
+function Base.getindex(ev::Events, s::Source)
+    return ev[s.tag, s.handle]
+end
 
 function to_jl(p::Ptr{Void})
 
@@ -178,12 +188,55 @@ immutable EventID
     event::Cuint
 end
 
-where(ev::Events) = ccall(
-    (:get_event_id, libfwlite), EventID, (Ptr{Void},), ev.ev
-)
+function where(ev::Events)
+    r = ccall(
+        (:get_event_id, libfwlite), EventID, (Ptr{Void},), ev.ev
+    )
+    return (convert(Int64, r.run), convert(Int64, r.lumi), convert(Int64, r.event))
+end
+
+chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
+chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
+
+macro onworkers(targets, ex)
+    quote
+        @sync begin
+            for w in $targets
+                #println("Executing on $w")
+                #remotecall(w, ()->eval(Main,$(Expr(:quote,ex))))
+                #remotecall(w, () -> @eval $(Expr(:quote,ex)))
+                @spawnat w eval(Main, $(Expr(:quote,ex)))
+            end
+        end
+    end
+end
+
+function process_parallel(func::Function, tree_ex::Symbol, targets::Vector{Int64}, args...)
+
+    newsymb = :local_tree#gensym("local_tree")
+    @eval @onworkers $targets const $newsymb = eval($tree_ex)
+    ntree = @fetchfrom targets[1] length(eval(Main, newsymb))
+    chunksize = int(ntree / length(targets))
+    ranges = chunks(chunksize, ntree)
+
+    nr = 1
+    refs = RemoteRef[]
+    for r in ranges
+        nproc = targets[mod1(nr, length(targets))]
+        println("submitting chunk $(r.start):$(r.start+r.len) to worker $nproc, tree name=$newsymb")
+        rr = remotecall(
+            nproc,
+            _r -> map(n -> func(n, eval(Main, newsymb), args...), _r), r
+        )
+        push!(refs, rr)
+        nr += 1
+    end
+    return (ntree, refs)
+end
 
 export fwlite_initialize
-export InputTag, Handle, EventID
+export InputTag, Handle, EventID, Source
 export Events
 export to!
 export where
+export @onworkers, process_parallel
