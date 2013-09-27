@@ -1,12 +1,8 @@
 const libfwlite = joinpath(Pkg.dir(), "ROOT.jl", "src", "CMSSW", "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
 const libroot = joinpath(Pkg.dir(), "ROOT.jl", "lib", "libroot")
 
-immutable CArray
-    start::Ptr{Ptr{Void}}
-    size::Cint
-    n_elems::Cint
-end
-
+#Try to load the FWLite libraries, warn the user in case it was impossible
+#Need to do cmsenv beforehand
 try
     dlopen(libfwlite)
 catch e
@@ -16,12 +12,20 @@ catch e
     rethrow(e)
 end
 
+#A C struct for a variable size array
+immutable CArray
+    start::Ptr{Ptr{Void}} #Pointer to the start of the array
+    size::Cint #Size of an element in the array
+    n_elems::Cint #Length of the array
+end
 
+#A wrapper for edm::InputTag
 immutable InputTag
-    p::Ptr{Void}
-    label::Symbol
-    instance::Symbol
-    process::Symbol
+    p::Ptr{Void} #Pointer to the underlying InputTag object
+    label::Symbol #The module that produced this object
+    instance::Symbol #The product in this module
+    process::Symbol #THe cmsRun Process that produced this object
+
     InputTag(label::Symbol, instance::Symbol, process::Symbol) = new(
         ccall(
             (:new_inputtag, libfwlite),
@@ -30,6 +34,7 @@ immutable InputTag
     )
 end
 
+#Create the methods for creating fwlite::Handle objects and getting objects by label using fwlite::Handle::getByLabel
 for symb in [:vfloat]
     eval(quote
         $(symbol(string("get_by_label_", symb)))(ev::Ptr{Void}, h::Ptr{Void}, t::InputTag) = ccall(
@@ -45,12 +50,7 @@ for symb in [:vfloat]
     end)
 end
 
-get_by_label_vfloat1(ev::Ptr{Void}, h::Ptr{Void}, t::InputTag) = ccall(
-    (:get_by_label_vfloat, libfwlite),
-    Ptr{Void}, (Ptr{Void}, Ptr{Void}, Ptr{Void}), ev, h,
-    t.p
-)
-
+#Initialize the FWLite libraries
 function fwlite_initialize()
     out = ccall(
         (:initialize, libfwlite),
@@ -59,9 +59,10 @@ function fwlite_initialize()
     return out
 end
 
+#A Wrapper for fwlite::Handle<T>
 immutable Handle
-    p::Ptr{Void}
-    t::Type
+    p::Ptr{Void} #The poiter to the underlying fwlite::Handle
+    t::Type #The Handle datatype
 end
 
 const type_table = {
@@ -79,42 +80,44 @@ end
 
 Handle(s::Symbol) = Handle(type_table[s])
 
+#A Handle-InputTag pair
 immutable Source
     tag::InputTag
     handle::Handle
 end
 
+Source(label::Symbol, instance::Symbol, process::Symbol, t::Type=Vector{Cfloat}) = Source(
+    InputTag(label, instance, process), Handle(t)
+)
 
+#The primary fwlite::ChainEvent wrapper
 type Events
-    fnames::Vector{String}
-    ev::Ptr{Void}
-    tags::Dict{(Symbol, Symbol, Symbol), (InputTag, Handle)}
-    index::Int64
+    fnames::Vector{String} #List of the file names that were loaded
+    ev::Ptr{Void} #A pointer to the underlying fwlite::ChainEvent
+    index::Int64 #The index of the current event
 
     function Events(fnames)
         ev = ccall(
-        (:new_chain_event, libfwlite),
-        Ptr{Void}, (Ptr{Ptr{Uint8}}, Cuint), convert(Vector{ASCIIString}, fnames), length(fnames)
+            (:new_chain_event, libfwlite),
+            Ptr{Void}, (Ptr{Ptr{Uint8}}, Cuint), convert(Vector{ASCIIString}, fnames), length(fnames)
         )
-        events = new(
-            fnames, ev,
-            Dict{(Symbol, Symbol, Symbol), (InputTag, Handle)}(),
-            0
-        )
+        events = new(fnames, ev, 0)
 
-        for (dtype, label, instance, process) in get_branches(events)
-            try
-                #events.tags[(label, instance, process)] = (InputTag(label, instance, process), Handle(dtype))
-            catch e
-                #warn("tag $dtype, $label, $instance, $process not created: $e")
-            end
-        end
+        # Get the list of products in the files
+        # for (dtype, label, instance, process) in get_branches(events)
+        #     try
+        #         #events.tags[(label, instance, process)] = (InputTag(label, instance, process), Handle(dtype))
+        #     catch e
+        #         #warn("tag $dtype, $label, $instance, $process not created: $e")
+        #     end
+        # end
         return events
     end
 end
 
 Events(fname::ASCIIString) = Events([fname])
 
+#Returns the list of products in the files
 function get_branches(ev::Events)
     parr = ccall(
         (:get_branches, libfwlite),
@@ -133,13 +136,15 @@ function get_branches(ev::Events)
     return ret
 end
 
-function where(ev::Events)
+#Gets the run, lumi, event ID of the current event 
+function where_file(ev::Events)
     return ccall(
         (:events_fileindex, libfwlite),
         Clong, (Ptr{Void}, ), ev.ev
     ) + 1
 end
 
+#Gets the number of events in the files
 function Base.length(ev::Events)
     return ccall(
         (:events_size, libfwlite),
@@ -147,6 +152,7 @@ function Base.length(ev::Events)
     )
 end
 
+#Scans to an event with a global(across files) index n
 function to!(ev::Events, n::Integer)
     scanned = ccall(
             (:events_to, libfwlite),
@@ -156,13 +162,8 @@ function to!(ev::Events, n::Integer)
     ev.index = n
 end
 
-function Base.getindex(ev::Events, label::Symbol, instance::Symbol, process::Symbol)
-    tag, handle = ev.tags[(label, instance, process)]
-    return ev[tag, handle]
-end
-
 function Base.getindex(ev::Events, tag::InputTag, handle::Handle)
-    ret::Ptr{Void} = get_by_label_vfloat1(ev.ev, handle.p, tag)
+    ret::Ptr{Void} = get_by_label_vfloat(ev.ev, handle.p, tag)
     return to_jl(ret)
 end
 
@@ -170,18 +171,23 @@ function Base.getindex(ev::Events, s::Source)
     return ev[s.tag, s.handle]
 end
 
+#Converts C++ objects to Julia Arrays
+#The memory is not copied explicitly, thus subsequent events overwrite the contents of the array
+#Currently only implemented for std::vector<float>
 function to_jl(p::Ptr{Void})
-
     parr = ccall(
-            (:convert_vector, libfwlite),
+            (:convert_vector_vfloat, libfwlite),
             Ptr{CArray}, (Ptr{Void}, ), p
     )
     arr = unsafe_load(parr)
-    jarr = pointer_to_array(convert(Ptr{Cfloat}, arr.start), (convert(Int64, arr.n_elems),))
+    jarr = pointer_to_array(
+        convert(Ptr{Cfloat}, arr.start), (convert(Int64, arr.n_elems),)
+    )
     parr!= C_NULL && c_free(parr)
     return jarr
 end
 
+#A struct containing the Run, Lumi, Event index
 immutable EventID
     run::Cuint
     lumi::Cuint
@@ -195,26 +201,25 @@ function where(ev::Events)
     return (convert(Int64, r.run), convert(Int64, r.lumi), convert(Int64, r.event))
 end
 
-chunk(n, c, maxn) = sum([n]*(c-1))+1:min(n*c, maxn)
+#Parallel processing related helpers
+chunk(n, c, maxn) = (sum([n]*(c-1))+1):(min(n*c, maxn))
 chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
 
 macro onworkers(targets, ex)
     quote
         @sync begin
             for w in $targets
-                #println("Executing on $w")
-                #remotecall(w, ()->eval(Main,$(Expr(:quote,ex))))
-                #remotecall(w, () -> @eval $(Expr(:quote,ex)))
                 @spawnat w eval(Main, $(Expr(:quote,ex)))
             end
         end
     end
 end
 
-function process_parallel(func::Function, tree_ex::Symbol, targets::Vector{Int64}, args...)
 
-    newsymb = :local_tree#gensym("local_tree")
-    @eval @onworkers $targets const $newsymb = eval($tree_ex)
+#Applied the function func across a globally(across workers in the top namespace) defined events
+function process_parallel(func::Function, events_ex::Symbol, targets::Vector{Int64}, args...)
+    newsymb = :local_tree
+    @eval @onworkers $targets const $newsymb = eval($events_ex)
     ntree = @fetchfrom targets[1] length(eval(Main, newsymb))
     chunksize = int(ntree / length(targets))
     ranges = chunks(chunksize, ntree)
@@ -223,10 +228,10 @@ function process_parallel(func::Function, tree_ex::Symbol, targets::Vector{Int64
     refs = RemoteRef[]
     for r in ranges
         nproc = targets[mod1(nr, length(targets))]
-        println("submitting chunk $(r.start):$(r.start+r.len) to worker $nproc, tree name=$newsymb")
+        println("submitting chunk $(r.start):$(r.start+r.len-1) to worker $nproc, tree name=$newsymb")
         rr = remotecall(
             nproc,
-            _r -> map(n -> func(n, eval(Main, newsymb), args...), _r), r
+            _r -> map(n -> func(n, eval(Main, newsymb), args...), [_r]), r
         )
         push!(refs, rr)
         nr += 1
@@ -238,5 +243,5 @@ export fwlite_initialize
 export InputTag, Handle, EventID, Source
 export Events
 export to!
-export where
+export where, where_file
 export @onworkers, process_parallel
