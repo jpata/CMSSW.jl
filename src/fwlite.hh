@@ -1,3 +1,6 @@
+#ifndef STPOL_FWLITE_H
+#define STPOL_FWLITE_H
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -33,21 +36,9 @@ public:
 };
 
 extern "C" {
-    void initialize()
-    {
-        gSystem->Load( "libFWCoreFWLite" );
-        AutoLibraryLoader::enable();
-        gSystem->Load("libDataFormatsFWLite");
-        std::cout << "ROOT+FWLite initialized: " << gROOT->GetVersion() << std::endl;
-    }
-
+    void initialize();
     const vector<float> *get_vfloat(fwlite::Handle<vector<float>> *h, fwlite::ChainEvent *ev, const label &l);
-
-    const event_id get_event_id(fw_event *ev)
-    {
-        edm::EventID id = ev->id();
-        return event_id(id.run(), id.luminosityBlock(), id.event());
-    }
+    const event_id get_event_id(fw_event *ev);
 }
 
 
@@ -85,4 +76,4 @@ inline const T *get_by_label(const fwlite::ChainEvent *ev, fwlite::Handle<T> *ha
     handle->getByLabel(*ev, itag->label().c_str(), itag->instance().c_str(), itag->process().c_str());
     return handle->isValid() ? handle->product() : 0;
 }
-
+#endif
