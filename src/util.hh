@@ -6,7 +6,7 @@ struct Array
 };
 
 extern "C" {
-    Array *convert_vector(std::vector<float> *v)
+    Array *convert_vector_vfloat(std::vector<float> *v)
     {
         if (v == 0) return 0;
         Array *out = (Array *)malloc(sizeof(Array));
