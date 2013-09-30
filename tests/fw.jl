@@ -1,18 +1,28 @@
 using ROOT
 
+using Base.Test
+
 #Download the test file 
 testfile = joinpath(Pkg.dir(), "ROOT.jl", "dat", "test_edm.root")
 isfile(testfile) || download("http://cms.hep.kbfi.ee/~joosep/test_edm.root", testfile)
 
 #Open the events file
 ev = Events(testfile)
-assert(length(ev) == 297977)
+@test length(ev) == 297977
 
 sum_pt = 0.0
 
 const mu_pt = Source(
     InputTag(:goodSignalMuonsNTupleProducer, :Pt, :STPOLSEL2), Handle(Vector{Cfloat})
 )
+
+for i=1:2
+    @test begin
+        to!(ev, 97)
+        return abs(ev[mu_pt][1] - 45.09394)<1.0
+    end
+end
+
 const mu_eta = Source(
     InputTag(:goodSignalMuonsNTupleProducer, :Eta, :STPOLSEL2), Handle(Vector{Cfloat})
 )
@@ -43,9 +53,5 @@ function do_loop(ev::Events)
     end
 end
 
-for i=1:5
-    el = @elapsed do_loop(ev)
-    println("speed=", length(ev)/el)
-end
-
-println("sum_pt = ", sum_pt)
+el = @elapsed do_loop(ev)
+@test abs(sum_pt - 2.420409521118164e6) < 1.0

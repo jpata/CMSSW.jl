@@ -9,11 +9,12 @@ println("Running with workers=[", join(workers(), ","), "], controller=$(myid())
     }
 
     events = Events(treepaths)
+
+    evid_type = (Int64, Int64, Int64)
     type Results
         nevents::Int64
-        processed::Vector{EventID}
     end
-    Results() = Results(0, EventID[])
+    Results() = Results(0)
     +(r1::Results, r2::Results) = Results(r1.nevents+r2.nevents, vcat(r1.processed, r2.processed))
 
     const mu_pt = Source(
@@ -33,7 +34,7 @@ println("Running with workers=[", join(workers(), ","), "], controller=$(myid())
         etas = events[mu_eta]
 
         results.nevents += 1
-        push!(results.processed, where(events))
+
         return true
     end
 end
