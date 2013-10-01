@@ -1,5 +1,4 @@
 d=`pwd`
-
 DISTR=`python -c "import platform; print (platform.system() + ' ' + ' '.join(platform.linux_distribution()))"`
 
 if [[ "$DISTR" == *Darwin* ]]

@@ -18,7 +18,9 @@
     <Flags CXXFLAGS="-O2 -shared -fPIC -I$(CMSSW_BASE)/../ -I$(INCLUDE_DIR)"/>
 </library>
 
+<!--
 <bin name="simple" file="simple.cc,fwlite.cc">
     <Flags CXXFLAGS="-O2 -lfwlevents_c -I$(CMSSW_BASE)/../ -I$(INCLUDE_DIR)"/>
 </bin>
+-->
 
