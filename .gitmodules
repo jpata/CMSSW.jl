@@ -1,0 +1,3 @@
+[submodule "deps/ntuple"]
+	path = deps/ntuple
+	url = https://github.com/jpata/ntuple

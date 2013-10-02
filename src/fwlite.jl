@@ -1,5 +1,4 @@
-const libfwlite = joinpath(Pkg.dir(), "ROOT.jl", "src", "CMSSW", "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
-const libroot = joinpath(Pkg.dir(), "ROOT.jl", "lib", "libroot")
+const libfwlite = joinpath(Pkg.dir(), "ROOT.jl", "deps", "ntuple", "CMSSW", "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
 
 #Try to load the FWLite libraries, warn the user in case it was impossible
 #Need to do cmsenv beforehand
