@@ -11,7 +11,6 @@ ev = Events(testfile)
 @test length(ev) == 297977
 
 sum_pt = 0.0
-
 const mu_pt = Source(
     InputTag(:goodSignalMuonsNTupleProducer, :Pt, :STPOLSEL2), Handle(Vector{Cfloat})
 )
@@ -54,4 +53,5 @@ function do_loop(ev::Events)
 end
 
 el = @elapsed do_loop(ev)
-@test abs(sum_pt - 2.420409521118164e6) < 1.0
+@test_approx_eq_eps abs(sum_pt) 2.420409521118164e6 1.0
+println("Tests conducted successfully")
