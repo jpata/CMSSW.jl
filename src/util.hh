@@ -1,3 +1,6 @@
+//A C library with generic utility methods
+
+//A variable length array
 struct Array
 {
     void *start;
@@ -6,6 +9,8 @@ struct Array
 };
 
 extern "C" {
+
+    //Converts a vector<float> to an Array on the heap
     Array *convert_vector_vfloat(std::vector<float> *v)
     {
         if (v == 0) return 0;

@@ -41,9 +41,9 @@ extern "C" {
     const event_id get_event_id(fw_event *ev);
 }
 
-
-
 //Specific to the C(++) interface
+
+//The state stored between the callouts
 class State
 {
 public:
@@ -53,8 +53,8 @@ public:
     map<const char *, void *> user_objects;
 };
 
+//The event loop kernel
 void do_loop(State *state);
-
 
 //Specific to the C(->julia) interface
 
