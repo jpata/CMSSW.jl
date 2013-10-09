@@ -1,5 +1,7 @@
 const libfwlite = joinpath(Pkg.dir(), "ROOT.jl", "deps", "ntuple", "CMSSW", "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
 
+using DataFrames
+
 #Try to load the FWLite libraries, warn the user in case it was impossible
 #Need to do cmsenv beforehand
 try
@@ -34,7 +36,7 @@ immutable InputTag
 end
 
 #Create the methods for creating fwlite::Handle objects and getting objects by label using fwlite::Handle::getByLabel
-for symb in [:vfloat]
+for symb in [:vfloat, :double, :float, :int]
     eval(quote
         $(symbol(string("get_by_label_", symb)))(ev::Ptr{Void}, h::Ptr{Void}, t::InputTag) = ccall(
             ($(string("get_by_label_", symb)), libfwlite),
@@ -71,6 +73,15 @@ const type_table = {
 function Handle(t::Type)
     if t==Vector{Cfloat}
         hp = new_handle_vfloat()
+        return Handle(hp, t)
+    elseif t==Float64
+        hp = new_handle_double()
+        return Handle(hp, t)
+    elseif t==Float32
+        hp = new_handle_float()
+        return Handle(hp, t)
+    elseif t==Int32
+        hp = new_handle_int()
         return Handle(hp, t)
     else
         error("Handle not defined for type $t")
@@ -162,8 +173,17 @@ function to!(ev::Events, n::Integer)
 end
 
 function Base.getindex(ev::Events, tag::InputTag, handle::Handle)
-    ret::Ptr{Void} = get_by_label_vfloat(ev.ev, handle.p, tag)
-    return to_jl(ret)
+    ret = C_NULL
+    if handle.t == Vector{Cfloat}
+        ret = get_by_label_vfloat(ev.ev, handle.p, tag)
+    elseif handle.t == Float64
+        ret = get_by_label_double(ev.ev, handle.p, tag)
+    elseif handle.t == Int32
+        ret = get_by_label_int(ev.ev, handle.p, tag)
+    else
+        error("get_by_label not defined for type $(handle.t)")
+    end
+    return ret != C_NULL ? to_jl(ret, handle.t) : NA
 end
 
 function Base.getindex(ev::Events, s::Source)
@@ -173,7 +193,8 @@ end
 #Converts C++ objects to Julia Arrays
 #The memory is not copied explicitly, thus subsequent events overwrite the contents of the array
 #Currently only implemented for std::vector<float>
-function to_jl(p::Ptr{Void})
+function to_jl{T <: Vector{Cfloat}}(p::Ptr{Void}, ::Type{T})
+    assert(p!=C_NULL, "input pointer was 0")
     parr = ccall(
             (:convert_vector_vfloat, libfwlite),
             Ptr{CArray}, (Ptr{Void}, ), p
@@ -185,6 +206,17 @@ function to_jl(p::Ptr{Void})
     parr!= C_NULL && c_free(parr)
     return jarr
 end
+
+function to_jl{T <: Number}(p::Ptr{Void}, ::Type{T})
+    assert(p!=C_NULL, "input pointer was 0")
+    #println("converting $T to julia: $p")
+    arr = deepcopy(pointer_to_array(
+        convert(Ptr{T}, p), (1,)
+    ))
+    return arr[1]
+
+end
+
 
 #A struct containing the Run, Lumi, Event index
 immutable EventID
