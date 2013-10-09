@@ -107,6 +107,10 @@ type Events
     index::Int64 #The index of the current event
 
     function Events(fnames)
+        println("Loading events from files:")
+        for f in fnames
+            println("\t $f")
+        end
         ev = ccall(
             (:new_chain_event, libfwlite),
             Ptr{Void}, (Ptr{Ptr{Uint8}}, Cuint), convert(Vector{ASCIIString}, fnames), length(fnames)
@@ -199,6 +203,7 @@ function to_jl{T <: Vector{Cfloat}}(p::Ptr{Void}, ::Type{T})
             (:convert_vector_vfloat, libfwlite),
             Ptr{CArray}, (Ptr{Void}, ), p
     )
+    (parr == C_NULL) && throw("output pointer was 0")
     arr = unsafe_load(parr)
     jarr = pointer_to_array(
         convert(Ptr{Cfloat}, arr.start), (convert(Int64, arr.n_elems),)
