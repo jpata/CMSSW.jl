@@ -129,6 +129,12 @@ type Events
     end
 end
 
+function list_branches(ev::Events)
+    for (dtype, label, instance, process) in get_branches(ev)
+        println("$label:$instance:$process -> $dtype")
+    end
+end
+
 Events(fname::ASCIIString) = Events([fname])
 
 #Returns the list of products in the files
@@ -278,6 +284,6 @@ end
 export fwlite_initialize
 export InputTag, Handle, EventID, Source
 export Events
-export to!
+export to!, list_branches
 export where, where_file
 export @onworkers, process_parallel
