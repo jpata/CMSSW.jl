@@ -192,6 +192,7 @@ end
 
 function readtree(fn)
     tf = TFile(fn, "READ")
+    error("FIXME: read column names from file")
     tree = TTree(tf, "dataframe", {"a", "b"}, {Float64, ASCIIString})
     n = length(tree)
     #df = DataFrame({x=>y for (x,y) in zip(tree.colnames, tree.coltypes)}, n)
@@ -206,36 +207,4 @@ function readtree(fn)
     return df
 end
 
-df = readtable("/Users/joosep/Documents/stpol/data/oct3/output_172.csv.gz")
-writetree("test.root", df)
-# df = DataFrame(
-#     a=DataVector[0.1, 1.2, 2.3, 3.4, 4.5, NA, 5.6],
-#     b=DataVector["asd", "bds", "csd", "dsa", "sss", NA, "lol"]
-# )
-# writetree(df, "test.root")
-# df2 = readtree("test.root")
-
-
-# println(df2)
-# println(df .== df2)
-# tf = TFile("test.root", "RECREATE")
-# tree = TTree(tf, "my_tree", {"col1", "col2", "col3"}, {Float32, Int64, ASCIIString})
-# for i=1:1000
-#     tree[:col1] = i
-#     tree[:col2] = i
-#     tree[:col3] = string("rohelisekoerasaba_$i")
-#     nb = fill!(tree)
-# end
-# tree[:col1] = NA
-# tree[:col3] = NA
-# fill!(tree)
-# close(tf)
-
-# tf = TFile("test.root", "READ")
-# tree = TTree(tf, "my_tree", {"col1", "col2", "col3"}, {Float32, Int64, ASCIIString})
-# for i=0:(length(tree)-1)
-#     y = getentry!(tree, i)
-#     x = tree[:col1]
-#     println("col3=",tree[:col3])
-# end
-# close(tf)
+export writetree, readtree
