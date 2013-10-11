@@ -1,5 +1,5 @@
 module ROOT
-    include("plainroot.jl")
     include("fwlite.jl")
+    include("plainroot.jl")
     fwlite_initialize()
 end
