@@ -102,7 +102,7 @@ function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
 
         a = attach(x, tree, cn)
         b = attach(na, tree, "$(cn)_ISNA")
-        
+
         branches[cn] = NABranch(x, na)
     end
     return TTree(tree, name, convert(Vector{String}, colnames), convert(Vector{Type}, coltypes), branches)
@@ -221,7 +221,7 @@ plain_type_table = {
     "Float_t"=>Float32,
     "Double_t"=>Float64,
     "Int_t"=>Int32,
-    "Long_t"=>Int64,
+    "Long64_t"=>Int64,
     "Char_t"=>ASCIIString,
     "Bool_t"=>Bool
 }
