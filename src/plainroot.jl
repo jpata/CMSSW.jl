@@ -171,7 +171,7 @@ end
 function getentry!(tree::TTree, n::Int64)
     return ccall(
         (:ttree_get_entry, libplainroot),
-        Clong, (Ptr{Void}, Clong), tree.p, n
+        Clong, (Ptr{Void}, Clong), tree.p, n-1
     )
 end
 
@@ -202,7 +202,7 @@ function readtree(fn)
     #df = DataFrame({x=>y for (x,y) in zip(tree.colnames, tree.coltypes)}, n)
     df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.colnames), n)
     for i=1:n
-        getentry!(tree, i-1)
+        getentry!(tree, i)
         for cn in colnames(df)
             df[i, cn] = tree[symbol(cn)]
         end

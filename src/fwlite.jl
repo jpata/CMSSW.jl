@@ -214,20 +214,20 @@ function to_jl{T <: Vector{Cfloat}}(p::Ptr{Void}, ::Type{T})
     jarr = pointer_to_array(
         convert(Ptr{Cfloat}, arr.start), (convert(Int64, arr.n_elems),)
     )
-    parr!= C_NULL && c_free(parr)
+    parr != C_NULL && c_free(parr)
     return jarr
 end
 
 function to_jl{T <: Number}(p::Ptr{Void}, ::Type{T})
     assert(p!=C_NULL, "input pointer was 0")
     #println("converting $T to julia: $p")
-    arr = deepcopy(pointer_to_array(
+    arr = pointer_to_array(
         convert(Ptr{T}, p), (1,)
-    ))
+    )
+    assert(length(arr)==1)
     return arr[1]
 
 end
-
 
 #A struct containing the Run, Lumi, Event index
 immutable EventID
@@ -236,6 +236,7 @@ immutable EventID
     event::Cuint
 end
 
+#gets the run,lumi,event of an event
 function where(ev::Events)
     r = ccall(
         (:get_event_id, libfwlite), EventID, (Ptr{Void},), ev.ev
@@ -281,10 +282,18 @@ function process_parallel(func::Function, events_ex::Symbol, targets::Vector{Int
     return (ntree, refs)
 end
 
-function get_counter_sum(fnames, name)
+#gets the total counter value of a named edm::MergeableCounter across files
+function get_counter_sum{T <: String}(fnames::AbstractVector{T}, cname)
     return ccall(
         (:get_counter_sum, libfwlite), Clong, (Ptr{Ptr{Uint8}}, Cuint, Ptr{Uint8}),
-        convert(Vector{ASCIIString}, fnames), length(fnames), string(name)
+        convert(Vector{ASCIIString}, fnames), length(fnames), string(cname)
+    )
+end
+
+function passes_hlt{T <: String}(ev::Events, hlts::AbstractVector{T})
+    return ccall(
+        (:passes_triggers, libfwlite), Bool, (Ptr{Void}, Ptr{Ptr{Uint8}}, Cuint),
+        ev.ev, convert(Vector{ASCIIString}, hlts), length(hlts)
     )
 end
 
@@ -294,3 +303,4 @@ export Events
 export to!, list_branches
 export where, where_file
 export @onworkers, process_parallel
+export get_counter_sum, passes_hlt

@@ -38,6 +38,20 @@ const n_tags = Source(
     InputTag(:bJetCount, symbol(""), :STPOLSEL2), Handle(Int32)
 )
 
+const hlts = ASCIIString[
+    "HLT_IsoMu24_eta2p1_v11",
+    "HLT_IsoMu24_eta2p1_v12",
+    "HLT_IsoMu24_eta2p1_v13",
+    "HLT_IsoMu24_eta2p1_v14",
+    "HLT_IsoMu24_eta2p1_v15",
+    "HLT_IsoMu24_eta2p1_v17",
+    "HLT_IsoMu24_eta2p1_v16",
+    "HLT_Ele27_WP80_v8",
+    "HLT_Ele27_WP80_v9",
+    "HLT_Ele27_WP80_v10",
+    "HLT_Ele27_WP80_v11",
+]
+
 #Loop over all the events, do a timing test as well
 function do_loop(ev::Events)
     
@@ -66,6 +80,9 @@ function do_loop(ev::Events)
 
         #run, lumi, event
         id = where(ev)
+
+        hlt = passes_hlt(ev, hlts)
+        println("hlt=$hlt")
     end
 end
 
