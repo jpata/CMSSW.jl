@@ -281,6 +281,13 @@ function process_parallel(func::Function, events_ex::Symbol, targets::Vector{Int
     return (ntree, refs)
 end
 
+function get_counter_sum(fnames, name)
+    return ccall(
+        (:get_counter_sum, libfwlite), Clong, (Ptr{Ptr{Uint8}}, Cuint, Ptr{Uint8}),
+        convert(Vector{ASCIIString}, fnames), length(fnames), string(name)
+    )
+end
+
 export fwlite_initialize
 export InputTag, Handle, EventID, Source
 export Events
