@@ -1,4 +1,6 @@
+tic()
 using ROOT
+using DataFrames
 
 using Base.Test
 
@@ -52,41 +54,46 @@ const hlts = ASCIIString[
     "HLT_Ele27_WP80_v11",
 ]
 
-#Loop over all the events, do a timing test as well
-function do_loop(ev::Events)
-    
-    global sum_pt
-    sum_pt = 0.0
+cos_thetas = Any[]
+pass_hlts = 0
+sum_pt = 0.0
+sum_jets = 0
 
-    #global mu_pt, mu_eta
+for i=1:length(ev)
 
-    for i=1:length(ev)
+    #Move to the i-th event (! means that the parameters are modified in-place, as is the case for Events)
+    to!(ev, i)
 
-        #Move to the i-th event (! means that the parameters are modified in-place, as is the case for Events)
-        to!(ev, i)
+    mupt::Vector{Float32} = ev[mu_pt]
+    mueta::Vector{Float32} = ev[mu_eta]
 
-        mupt::Vector{Float32} = ev[mu_pt]
-        mueta::Vector{Float32} = ev[mu_eta]
+    ct = ev[cos_theta]
+    push!(cos_thetas, ct)
 
-        ct = ev[cos_theta]
-        nj = ev[n_jets]
-        nt = ev[n_tags]
-        println("$nj, $nt, $ct")
+    nj = ev[n_jets]
+    sum_jets += (!isna(nj) ? nj : 0)
 
-        #Loop over the muons
-        for (pt, eta) in zip(mupt, mueta)
-            sum_pt += pt
-        end
+    nt = ev[n_tags]
+    #println("$nj, $nt, $ct")
 
-        #run, lumi, event
-        id = where(ev)
-
-        hlt = passes_hlt(ev, hlts)
-        println("hlt=$hlt")
+    #Loop over the muons
+    for (pt, eta) in zip(mupt, mueta)
+        sum_pt += pt
     end
+
+    #run, lumi, event
+    id = where(ev)
+
+    hlt = passes_hlt(ev, hlts)
+    pass_hlts += hlt ? 1 : 0
+
 end
 
-el = @elapsed do_loop(ev)
+toc()
 
 @test_approx_eq_eps abs(sum_pt) 786.054895401001 1.0
+@test sum([isna(c) for c in cos_thetas])==84
+@test pass_hlts == 39
+@test sum_jets == 49
+
 println("Tests conducted successfully")
