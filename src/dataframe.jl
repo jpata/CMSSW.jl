@@ -46,7 +46,19 @@ function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, row_ind::Real, col_i
 end
 
 function Base.getindex{R <: Real, T <: ColumnIndex}(df::TreeDataFrame, row_ind::AbstractVector{R}, col_inds::AbstractVector{T})
-    DataFrame({colname(df, ci) => [df[ri, ci] for ri in row_ind] for ci in col_inds})
+    cols = Dict()
+    for ci in col_inds
+        ct = coltype(df, ci)
+        cols[ci] = DataArray(ct, length(row_ind))
+    end
+    i = 1
+    for ri in row_ind
+        for ci in col_inds
+            cols[ci][i] = df[ri, ci]
+        end
+        i += 1
+    end
+    DataFrame({colname(df, ci) => cols[ci] for ci in col_inds})
 end
 
 function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::AbstractVector{R}, col_ind::ColumnIndex)
