@@ -36,7 +36,7 @@ immutable InputTag
 end
 
 #Create the methods for creating fwlite::Handle objects and getting objects by label using fwlite::Handle::getByLabel
-for symb in [:vfloat, :double, :float, :int]
+for symb in [:vfloat, :double, :float, :int, :uint]
     eval(quote
         $(symbol(string("get_by_label_", symb)))(ev::Ptr{Void}, h::Ptr{Void}, t::InputTag) = ccall(
             ($(string("get_by_label_", symb)), libfwlite),
@@ -82,6 +82,9 @@ function Handle(t::Type)
         return Handle(hp, t)
     elseif t==Int32
         hp = new_handle_int()
+        return Handle(hp, t)
+    elseif t==Uint32
+        hp = new_handle_uint()
         return Handle(hp, t)
     else
         error("Handle not defined for type $t")
@@ -190,6 +193,8 @@ function Base.getindex(ev::Events, tag::InputTag, handle::Handle)
         ret = get_by_label_double(ev.ev, handle.p, tag)
     elseif handle.t == Int32
         ret = get_by_label_int(ev.ev, handle.p, tag)
+    elseif handle.t == Uint32
+        ret = get_by_label_uint(ev.ev, handle.p, tag)
     else
         error("get_by_label not defined for type $(handle.t)")
     end
@@ -204,7 +209,7 @@ end
 #The memory is not copied explicitly, thus subsequent events overwrite the contents of the array
 #Currently only implemented for std::vector<float>
 function to_jl{T <: Vector{Cfloat}}(p::Ptr{Void}, ::Type{T})
-    assert(p!=C_NULL, "input pointer was 0")
+    @assert p!=C_NULL "input pointer was 0"
     parr = ccall(
             (:convert_vector_vfloat, libfwlite),
             Ptr{CArray}, (Ptr{Void}, ), p
@@ -219,12 +224,12 @@ function to_jl{T <: Vector{Cfloat}}(p::Ptr{Void}, ::Type{T})
 end
 
 function to_jl{T <: Number}(p::Ptr{Void}, ::Type{T})
-    assert(p!=C_NULL, "input pointer was 0")
+    @assert p!=C_NULL "input pointer was 0"
     #println("converting $T to julia: $p")
     arr = pointer_to_array(
         convert(Ptr{T}, p), (1,)
     )
-    assert(length(arr)==1)
+    @assert length(arr)==1 "array was not of unit length"
     return arr[1]
 
 end
