@@ -1,5 +1,5 @@
 all:
-	cd deps/ntuple; make clean; make lib;
+	cd deps/ntuple; make;
 
 setup:
 	./setup.sh
