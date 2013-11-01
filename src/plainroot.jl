@@ -1,4 +1,4 @@
-const libplainroot = joinpath(Pkg.dir(), "ROOT.jl", "deps", "ntuple", "CMSSW", "lib", ENV["SCRAM_ARCH"], "libplainroot")
+const libplainroot = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libplainroot")
 using DataFrames
 import Base.Test
 

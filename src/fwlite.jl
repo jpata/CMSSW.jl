@@ -1,4 +1,4 @@
-const libfwlite = joinpath(Pkg.dir(), "ROOT.jl", "deps", "ntuple", "CMSSW", "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
+const libfwlite = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
 
 using DataFrames
 
