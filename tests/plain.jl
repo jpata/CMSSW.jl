@@ -9,5 +9,6 @@ df = DataFrame(
 )
 writetree("test.root", df)
 df2 = readtree("test.root")
+rm("test.root")
 println(df)
 println(df2)

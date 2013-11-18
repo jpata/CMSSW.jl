@@ -1,5 +1,7 @@
 const libplainroot = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libplainroot")
 using DataFrames
+using DataArrays
+
 import Base.Test
 
 type TFile
