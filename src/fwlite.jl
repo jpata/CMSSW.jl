@@ -1,5 +1,5 @@
 const libfwlite = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
-
+const WARN = false
 using DataFrames
 
 #Try to load the FWLite libraries, warn the user in case it was impossible
@@ -197,6 +197,9 @@ function Base.getindex(ev::Events, tag::InputTag, handle::Handle)
         ret = get_by_label_uint(ev.ev, handle.p, tag)
     else
         error("get_by_label not defined for type $(handle.t)")
+    end
+    if WARN && ret == C_NULL
+        warn("could not read $tag")
     end
     return ret != C_NULL ? to_jl(ret, handle.t) : NA
 end
