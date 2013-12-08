@@ -249,7 +249,7 @@ function where(ev::Events)
     r = ccall(
         (:get_event_id, libfwlite), EventID, (Ptr{Void},), ev.ev
     )
-    return (convert(Int64, r.run), convert(Int64, r.lumi), convert(Int64, r.event))
+    return (r.run, r.lumi, r.event)
 end
 
 #Parallel processing related helpers

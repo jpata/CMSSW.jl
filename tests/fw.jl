@@ -59,6 +59,7 @@ pass_hlts = 0
 sum_pt = 0.0
 sum_jets = 0
 
+ids = Any[]
 for i=1:length(ev)
 
     #Move to the i-th event (! means that the parameters are modified in-place, as is the case for Events)
@@ -83,6 +84,8 @@ for i=1:length(ev)
 
     #run, lumi, event
     id = where(ev)
+    
+    push!(ids, id)
 
     hlt = passes_hlt(ev, hlts)
     pass_hlts += hlt ? 1 : 0
