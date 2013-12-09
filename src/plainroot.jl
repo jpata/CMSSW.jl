@@ -177,6 +177,14 @@ function getentry!(tree::TTree, n::Int64)
     )
 end
 
+function enable_cache!(tree::TTree)
+    return ccall(
+        (:ttree_cache, libplainroot),
+        Void, (Ptr{Void}, ), tree.p
+    )
+end
+
+
 function Base.length(tree::TTree)
     return ccall(
         (:ttree_get_entries, libplainroot),
@@ -187,6 +195,7 @@ end
 function writetree(fn, df::DataFrame)
     tf = TFile(fn, "RECREATE")
     tree = TTree(tf, "dataframe", colnames(df), coltypes(df))
+    enable_cache!(tree)
     for i=1:nrow(df)
         for cn in colnames(df)
             tree[symbol(cn)] = NA #zero out (for strings)
@@ -200,6 +209,7 @@ end
 function readtree(fn)
     tf = TFile(fn, "READ")
     tree = TTree(tf, "dataframe")
+    enable_cache!(tree)
     n = length(tree)
     #df = DataFrame({x=>y for (x,y) in zip(tree.colnames, tree.coltypes)}, n)
     df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.colnames), n)
