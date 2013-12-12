@@ -76,6 +76,7 @@ Branch{T <: Any}(defval::T) = error("not implemented")
 null{T <: Number}(::Type{T}) = convert(T, 0.0)
 null{T <: String}(::Type{T}) = bytestring(convert(Vector{Uint8}, zeros(512)))
 null{T <: Any}(::Type{T}) = error("not implemented for $T")
+null{T <: NAtype}(::Type{T}) = NA
 
 function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
 
@@ -99,6 +100,7 @@ function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
 
 
     for (cn, ct) in zip(colnames, coltypes)
+        #println(cn, " ", ct)
         x = Branch(null(ct))
         na = Branch(false) #the branch which signifies if a value is available
 

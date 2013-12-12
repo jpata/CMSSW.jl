@@ -85,6 +85,11 @@ for i=1:length(ev)
     #run, lumi, event
     id = where(ev)
     
+    idx = where_file(ev)
+    
+    fname = get_current_file_name(ev)
+    println(fname)
+
     push!(ids, id)
 
     hlt = passes_hlt(ev, hlts)

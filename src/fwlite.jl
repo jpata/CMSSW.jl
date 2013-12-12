@@ -111,9 +111,12 @@ type Events
 
     function Events(fnames)
         println("Loading events from files:")
+        i = 0
         for f in fnames
-            println("\t $f")
+            i += 1
+            println("\t $i $f")
         end
+
         ev = ccall(
             (:new_chain_event, libfwlite),
             Ptr{Void}, (Ptr{Ptr{Uint8}}, Cuint), convert(Vector{ASCIIString}, fnames), length(fnames)
@@ -159,12 +162,27 @@ function get_branches(ev::Events)
     return ret
 end
 
-#Gets the run, lumi, event ID of the current event 
+#gets the index of the current file of the current event in a multi-file fwlite::ChainEvents
+function get_current_file_name(ev::Events)
+    ret = ccall(
+        (:events_tfile_path, libfwlite),
+        Ptr{Uint8}, (Ptr{Void}, ), ev.ev
+    )
+    return bytestring(ret)
+end
+
 function where_file(ev::Events)
     return ccall(
         (:events_fileindex, libfwlite),
         Clong, (Ptr{Void}, ), ev.ev
     ) + 1
+end
+
+function where_event(ev::Events)
+    return int(ccall(
+        (:events_eventindex, libfwlite),
+        Clong, (Ptr{Void}, ), ev.ev
+    )) + 1
 end
 
 #Gets the number of events in the files
@@ -179,9 +197,11 @@ end
 function to!(ev::Events, n::Integer)
     scanned = ccall(
             (:events_to, libfwlite),
-            Bool, (Ptr{Void}, Clong), ev.ev, n-1
+            Bool, (Ptr{Void}, Clong), ev.ev, convert(Clong, n-1)
     )
     scanned || error("failed to scan to event $n")
+    #x = where_event(ev)
+    #n==x || warn("failed to scan to event $n!=$x")
     ev.index = n
 end
 
@@ -246,10 +266,16 @@ end
 
 #gets the run,lumi,event of an event
 function where(ev::Events)
-    r = ccall(
-        (:get_event_id, libfwlite), EventID, (Ptr{Void},), ev.ev
+    run = ccall(
+        (:get_event_run, libfwlite), Clong, (Ptr{Void},), ev.ev
     )
-    return (r.run, r.lumi, r.event)
+    lumi = ccall(
+        (:get_event_lumi, libfwlite), Clong, (Ptr{Void},), ev.ev
+    )
+    event = ccall(
+        (:get_event_event, libfwlite), Clong, (Ptr{Void},), ev.ev
+    )
+    return (run, lumi, event)
 end
 
 #Parallel processing related helpers
@@ -309,6 +335,7 @@ export fwlite_initialize
 export InputTag, Handle, EventID, Source
 export Events
 export to!, list_branches
-export where, where_file
+export where, where_file, where_event
 export @onworkers, process_parallel
 export get_counter_sum, passes_hlt
+export get_current_file_name, print_event_id
