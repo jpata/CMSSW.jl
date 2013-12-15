@@ -76,7 +76,10 @@ function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, ba::BitArray{1}, col
     return df[rows, col_ind]
 end
 
-function Base.getindex{R <: Real, T <: ColumnIndex}(df::TreeDataFrame, row_ind::AbstractVector{R}, col_inds::AbstractVector{T})
+function Base.getindex{R <: Real, T <: ColumnIndex}(
+    df::TreeDataFrame, row_ind::AbstractVector{R}, 
+    col_inds::AbstractVector{T}
+    )
     cols = Dict()
     for ci in col_inds
         ct = coltype(df, ci)
@@ -91,8 +94,12 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(df::TreeDataFrame, row_ind::
         add_cache!(df.tree, "$(cn)*") 
     end
     for ri in row_ind
+        #do ROOT::TTree::GetEntry(ri) with an arbitrary column
+        df[ri, col_inds[1], true]
+
+        #get all the column values
         for ci in col_inds
-            cols[ci][i] = df[ri, ci]
+            cols[ci][i] = df[ri, ci, false]
         end
         i += 1
     end
