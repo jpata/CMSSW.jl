@@ -2,6 +2,8 @@ const libplainroot = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libp
 using DataFrames
 using DataArrays
 
+typealias ColumnIndex Union(Real, String, Symbol)
+
 import Base.Test
 
 type TFile
@@ -79,7 +81,7 @@ null{T <: Any}(::Type{T}) = error("not implemented for $T")
 null{T <: NAtype}(::Type{T}) = NA
 
 function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
-
+    tf.p != C_NULL || error("TFile $(tf) was not opened successfully")
     tree = get(tf, name)
     if tree == C_NULL
         tree = ccall(
@@ -144,12 +146,17 @@ function Base.setindex!(tree::TTree, x::NAtype, s::Any)
     br.na.x[1] = true
 end
 
-function Base.getindex(tree::TTree, s::Any, checkna=true)
+function coltype{T <: ColumnIndex}(tree::TTree, cn::T)
+    br = tree.branches[string(cn)]
+    T = typeof(br).parameters[1]
+    return T
+end
+
+function Base.getindex{T <: ColumnIndex}(tree::TTree, s::T, checkna=true)
     br = tree.branches[string(s)]
     T = typeof(br).parameters[1]
 
-
-    if T <: Uint8
+    if T <: Uint8 #is string
         x = bytestring(br.value.x[1:(indmin(br.value.x)-1)])
     elseif T <: Number 
         x = br.value.x[1] 
@@ -158,7 +165,7 @@ function Base.getindex(tree::TTree, s::Any, checkna=true)
     end
 
     if checkna
-        na = br.na.x[1]
+        na = br.na.x[1]::Bool
         return na ? NA : x
     else
         return x
@@ -172,6 +179,13 @@ function fill!(tree::TTree)
     )
 end
 
+function set_branch_status!(tree::TTree, brstring::ASCIIString, status::Bool)
+    return ccall(
+        (:ttree_set_branch_status, libplainroot),
+        Void, (Ptr{Void}, Ptr{Uint8}, Bool), tree.p, brstring, status
+    )
+end
+
 function getentry!(tree::TTree, n::Int64)
     return ccall(
         (:ttree_get_entry, libplainroot),
@@ -179,12 +193,20 @@ function getentry!(tree::TTree, n::Int64)
     )
 end
 
-function enable_cache!(tree::TTree)
+function reset_cache!(tree::TTree)
     return ccall(
-        (:ttree_cache, libplainroot),
+        (:ttree_reset_cache, libplainroot),
         Void, (Ptr{Void}, ), tree.p
     )
 end
+
+function add_cache!(tree::TTree, branches::ASCIIString)
+    return ccall(
+        (:ttree_add_cache, libplainroot),
+        Void, (Ptr{Void}, Ptr{Uint8}), tree.p, branches
+    )
+end
+
 
 
 function Base.length(tree::TTree)
@@ -197,7 +219,8 @@ end
 function writetree(fn, df::DataFrame)
     tf = TFile(fn, "RECREATE")
     tree = TTree(tf, "dataframe", colnames(df), coltypes(df))
-    enable_cache!(tree)
+    reset_cache!(tree)
+    add_cache!(tree, "*")
     for i=1:nrow(df)
         for cn in colnames(df)
             tree[symbol(cn)] = NA #zero out (for strings)
@@ -211,7 +234,8 @@ end
 function readtree(fn)
     tf = TFile(fn, "READ")
     tree = TTree(tf, "dataframe")
-    enable_cache!(tree)
+    reset_cache!(tree)
+    add_cache!(tree, "*")
     n = length(tree)
     #df = DataFrame({x=>y for (x,y) in zip(tree.colnames, tree.coltypes)}, n)
     df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.colnames), n)
@@ -271,4 +295,5 @@ function ttree_get_branches(ttree::Ptr{Void})
     return to_arr(arr, TreeBranch)
 end
 
-export writetree, readtree
+export writetree, readtree, ColumnIndex, coltype
+export set_branch_status!, reset_cache!, add_cache!

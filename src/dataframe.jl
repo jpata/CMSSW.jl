@@ -3,8 +3,6 @@ using DataFrames
 import DataFrames.nrow, DataFrames.colnames
 import Base.getindex, Base.display
 
-typealias ColumnIndex Union(Real, String, Symbol)
-
 type TreeDataFrame <: AbstractDataFrame
     file::ROOT.TFile
     tree::ROOT.TTree
@@ -16,16 +14,17 @@ function TreeDataFrame(fn::ASCIIString)
     return TreeDataFrame(file, tree)
 end
 
+TreeDataFrame(df::TreeDataFrame) = TreeDataFrame(df.file.s)
+
 DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
 DataFrames.colnames(df::TreeDataFrame) = df.tree.colnames
 
-function colname(df::TreeDataFrame, col_ind::ColumnIndex)
-    if typeof(col_ind) <: Real
-        cn = colnames(df)[col_ind]
-    else
-        cn = string(col_ind)
-    end
-    return cn
+function colname{T <: Integer}(df::TreeDataFrame, col_ind::T)
+    return colnames(df)[col_ind]::ASCIIString
+end
+
+function colname{T <: ColumnIndex}(df::TreeDataFrame, col_ind::T)
+    return string(col_ind) 
 end
 
 function coltype(df::TreeDataFrame, col_ind::ColumnIndex)
@@ -33,8 +32,8 @@ function coltype(df::TreeDataFrame, col_ind::ColumnIndex)
     length(ci) == 1 ? df.tree.coltypes[ci[1]] : error("undefined column: $col_ind")
 end
 
-function Base.getindex(df::TreeDataFrame, row_ind::Real, col_ind::ColumnIndex)
-    ROOT.getentry!(df.tree, row_ind)
+function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::ColumnIndex, doget=true)
+    doget && ROOT.getentry!(df.tree, row_ind)
     cn = colname(df, col_ind)
     return df.tree[cn]
 end
@@ -45,6 +44,38 @@ function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, row_ind::Real, col_i
     DataFrame({colname(df, ci) => df[row_ind, ci] for ci in col_inds})
 end
 
+function Base.getindex(df::TreeDataFrame, col_ind::ColumnIndex)
+    ret = DataArray(coltype(df, col_ind), nrow(df))
+    for i=1:nrow(df)
+        ret[i] = df[i, col_ind]
+    end
+    return ret
+end
+
+function getrows(df::TreeDataFrame, ba::BitArray{1})
+    rows = Array(Int64, sum(ba))
+    i = 0
+    for b in ba
+        i += 1
+        if !b
+            continue
+        end
+        j += 1
+        rows[j] = i
+    end
+    return rows 
+end
+
+function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, ba::BitArray{1}, col_inds::AbstractVector{T})
+    rows = getrows(df, ba)
+    return df[rows, col_inds]
+end
+
+function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, ba::BitArray{1}, col_ind::T)
+    rows = getrows(df, ba)
+    return df[rows, col_ind]
+end
+
 function Base.getindex{R <: Real, T <: ColumnIndex}(df::TreeDataFrame, row_ind::AbstractVector{R}, col_inds::AbstractVector{T})
     cols = Dict()
     for ci in col_inds
@@ -52,6 +83,13 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(df::TreeDataFrame, row_ind::
         cols[ci] = DataArray(ct, length(row_ind))
     end
     i = 1
+    set_branch_status!(df.tree, "*", false)
+    reset_cache!(df.tree) 
+    for ci in col_inds
+        cn = colname(df, ci)
+        set_branch_status!(df.tree, "$(cn)*", true)
+        add_cache!(df.tree, "$(cn)*") 
+    end
     for ri in row_ind
         for ci in col_inds
             cols[ci][i] = df[ri, ci]
@@ -86,5 +124,3 @@ function to_df(df::TreeDataFrame)
 end
 
 export TreeDataFrame
-#df = TreeDataFrame("/Users/joosep/Documents/stpol/data/test.root")
-#x = df[10, ["met", "mtw", "sjet2_pt"]]
