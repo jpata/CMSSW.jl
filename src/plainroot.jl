@@ -98,7 +98,7 @@ function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
     end
     assert(tree != C_NULL)
 
-    branches = Dict{String, NABranch}()
+    branches = Dict{Symbol, NABranch}()
 
 
     for (cn, ct) in zip(colnames, coltypes)
@@ -109,7 +109,7 @@ function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
         a = attach(x, tree, cn)
         b = attach(na, tree, "$(cn)_ISNA")
 
-        branches[cn] = NABranch(x, na)
+        branches[symbol(cn)] = NABranch(x, na)
     end
     return TTree(tree, name, convert(Vector{String}, colnames), convert(Vector{Type}, coltypes), branches)
 end
@@ -123,22 +123,22 @@ function strcpy(a, b)
     )
 end
 
-function Base.setindex!(tree::TTree, x::String, s::Any)
-    br = tree.branches[string(s)]
+function Base.setindex!(tree::TTree, x::String, s::Symbol)
+    br = tree.branches[s]
     T = typeof(br).parameters[1]
     strcpy(br.value.x, x)
     br.na.x[1] = false
 end
 
-function Base.setindex!(tree::TTree, x::Number, s::Any)
-    br = tree.branches[string(s)]
+function Base.setindex!(tree::TTree, x::Number, s::Symbol)
+    br = tree.branches[s]
     T = typeof(br).parameters[1]
     br.value.x[1] = convert(T, x)
     br.na.x[1] = false
 end
 
-function Base.setindex!(tree::TTree, x::NAtype, s::Any)
-    br = tree.branches[string(s)]
+function Base.setindex!(tree::TTree, x::NAtype, s::Symbol)
+    br = tree.branches[s]
     T = typeof(br).parameters[1]
     for i=1:length(br.value.x)
         br.value.x[i] = 0
@@ -147,25 +147,25 @@ function Base.setindex!(tree::TTree, x::NAtype, s::Any)
 end
 
 function coltype{T <: ColumnIndex}(tree::TTree, cn::T)
-    br = tree.branches[string(cn)]
+    br = tree.branches[symbol(cn)]
     T = typeof(br).parameters[1]
     return T
 end
 
 function Base.getindex{T <: ColumnIndex}(tree::TTree, s::T, checkna=true)
-    br = tree.branches[string(s)]
-    T = typeof(br).parameters[1]
+    br = tree.branches[symbol(s)]
+    bt = typeof(br).parameters[1]
 
-    if T <: Uint8 #is string
+    if bt <: Uint8 #is string
         x = bytestring(br.value.x[1:(indmin(br.value.x)-1)])
-    elseif T <: Number 
+    elseif bt <: Number 
         x = br.value.x[1] 
     else
         error("not implemented")
     end
 
     if checkna
-        na = br.na.x[1]::Bool
+        na = br.na.x[1]
         return na ? NA : x
     else
         return x
@@ -219,8 +219,8 @@ end
 function writetree(fn, df::DataFrame)
     tf = TFile(fn, "RECREATE")
     tree = TTree(tf, "dataframe", colnames(df), coltypes(df))
-    reset_cache!(tree)
-    add_cache!(tree, "*")
+    #reset_cache!(tree)
+    #add_cache!(tree, "*")
     for i=1:nrow(df)
         for cn in colnames(df)
             tree[symbol(cn)] = NA #zero out (for strings)
@@ -231,18 +231,26 @@ function writetree(fn, df::DataFrame)
     close(tf)
 end
 
-function readtree(fn)
+function readtree(fn; progress=false)
     tf = TFile(fn, "READ")
     tree = TTree(tf, "dataframe")
-    reset_cache!(tree)
-    add_cache!(tree, "*")
+    #reset_cache!(tree)
+    #add_cache!(tree, "*")
     n = length(tree)
-    #df = DataFrame({x=>y for (x,y) in zip(tree.colnames, tree.coltypes)}, n)
+    println("looping over $n events")
     df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.colnames), n)
+    cns = map(symbol, colnames(df)) 
     for i=1:n
+        if progress && (i % 10000 == 0)
+            print(".")
+        end
+        if progress && (i % int(n/10) == 0)
+            println(10 * i/(int(n/10)), "%: $i ", toq())
+            tic()
+        end
         getentry!(tree, i)
-        for cn in colnames(df)
-            df[i, cn] = tree[symbol(cn)]
+        for cn in cns
+            df[i, cn] = tree[cn]
         end
     end
     close(tf)

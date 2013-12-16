@@ -20,7 +20,7 @@ DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
 DataFrames.colnames(df::TreeDataFrame) = df.tree.colnames
 
 function colname{T <: Integer}(df::TreeDataFrame, col_ind::T)
-    return colnames(df)[col_ind]::ASCIIString
+    return colnames(df)[col_ind]
 end
 
 function colname{T <: ColumnIndex}(df::TreeDataFrame, col_ind::T)
@@ -77,9 +77,11 @@ function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, ba::BitArray{1}, col
 end
 
 function Base.getindex{R <: Real, T <: ColumnIndex}(
-    df::TreeDataFrame, row_ind::AbstractVector{R}, 
-    col_inds::AbstractVector{T}
+        df::TreeDataFrame,
+        row_ind::AbstractVector{R}, 
+        col_inds::AbstractVector{T}
     )
+
     cols = Dict()
     for ci in col_inds
         ct = coltype(df, ci)
@@ -87,11 +89,11 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(
     end
     i = 1
     set_branch_status!(df.tree, "*", false)
-    reset_cache!(df.tree) 
+    #reset_cache!(df.tree) 
     for ci in col_inds
         cn = colname(df, ci)
         set_branch_status!(df.tree, "$(cn)*", true)
-        add_cache!(df.tree, "$(cn)*") 
+        #add_cache!(df.tree, "$(cn)*") 
     end
     for ri in row_ind
         #do ROOT::TTree::GetEntry(ri) with an arbitrary column
@@ -113,7 +115,7 @@ function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::AbstractVector{R},
     nas = BitArray(lenvals)
     i=1
     for ri in row_ind
-        x = df[ri, col_ind]
+        x = df[ri, col_ind]::Union(NAtype, T)
         if !isna(x)
             da[i] = x
             nas[i] = false
