@@ -9,6 +9,8 @@ df = DataFrame(
 )
 writetree("test.root", df)
 df2 = readtree("test.root")
+df2["asd"] = 3.0
+df2[2, "asd"] = -1.0
 rm("test.root")
 println(df)
 println(df2)

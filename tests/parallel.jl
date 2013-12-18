@@ -49,7 +49,6 @@ function run()
         wait(r)
     end
     _results = [@fetchfrom w eval(Main, :results) for w in workers()]
-    #println(intersect([r.processed for r in _results]))
     println(sum([r.nevents for r in _results]))
     return n
 end

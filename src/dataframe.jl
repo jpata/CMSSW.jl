@@ -1,22 +1,25 @@
 using ROOT
 using DataFrames
-import DataFrames.nrow, DataFrames.colnames
-import Base.getindex, Base.display
+import DataFrames.nrow, DataFrames.ncol, DataFrames.colnames
+import Base.getindex, Base.setindex!, Base.display
 
 type TreeDataFrame <: AbstractDataFrame
     file::ROOT.TFile
     tree::ROOT.TTree
+    ramdf::DataFrame
 end
 
 function TreeDataFrame(fn::ASCIIString)
     file = ROOT.TFile(fn, "READ")
     tree = ROOT.TTree(file, "dataframe")
-    return TreeDataFrame(file, tree)
+    ramdf = DataFrame()
+    return TreeDataFrame(file, tree, ramdf)
 end
 
 TreeDataFrame(df::TreeDataFrame) = TreeDataFrame(df.file.s)
 
 DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
+DataFrames.ncol(df::TreeDataFrame) = length(df.tree.colnames)
 DataFrames.colnames(df::TreeDataFrame) = df.tree.colnames
 
 function colname{T <: Integer}(df::TreeDataFrame, col_ind::T)
@@ -29,13 +32,61 @@ end
 
 function coltype(df::TreeDataFrame, col_ind::ColumnIndex)
     ci = find(x -> x == colname(df, col_ind), colnames(df))
-    length(ci) == 1 ? df.tree.coltypes[ci[1]] : error("undefined column: $col_ind")
+    if length(ci) == 1
+        return df.tree.coltypes[ci[1]]
+    else
+        warn("undefined column type for $col_ind")
+        return Any
+    end
 end
 
+function Base.setindex!{R <: Real}(df::TreeDataFrame, val::R, col_ind::ColumnIndex)
+    if nrow(df.ramdf)==0
+        df.ramdf[col_ind] = DataArray(val, nrow(df))
+    else
+        df.ramdf[col_ind] = val
+    end
+end
+
+function Base.setindex!{R <: Real, K <: Number}(
+    df::TreeDataFrame,
+    val::R,
+    row_ind::AbstractVector{K},
+    col_ind::ColumnIndex
+    )
+
+    df.ramdf[row_ind, col_ind] = val
+end
+
+function Base.setindex!{R <: Real, K <: Number}(
+    df::TreeDataFrame,
+    vals::AbstractVector{R},
+    row_ind::AbstractVector{K},
+    col_ind::ColumnIndex
+    )
+    
+    df.ramdf[row_ind, col_ind] = vals
+end
+
+function Base.setindex!{R <: Real}(
+    df::TreeDataFrame,
+    vals::AbstractVector{R},
+    col_ind::ColumnIndex
+    )
+    df.ramdf[col_ind] = vals
+end
+
+
 function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::ColumnIndex, doget=true)
-    doget && ROOT.getentry!(df.tree, row_ind)
-    cn = colname(df, col_ind)
-    return df.tree[cn]
+    
+    #prefer the column in RAM
+    if string(col_ind) in colnames(df.ramdf)
+        return df.ramdf[row_ind, col_ind]
+    else
+        doget && ROOT.getentry!(df.tree, row_ind)
+        cn = colname(df, col_ind)
+        return df.tree[cn]
+    end
 end
 
 Base.display(df::TreeDataFrame) = show(df.tree.colnames)
@@ -55,6 +106,7 @@ end
 function getrows(df::TreeDataFrame, ba::BitArray{1})
     rows = Array(Int64, sum(ba))
     i = 0
+    j = 0
     for b in ba
         i += 1
         if !b
@@ -89,15 +141,16 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(
     end
     i = 1
     set_branch_status!(df.tree, "*", false)
-    #reset_cache!(df.tree) 
+    reset_cache!(df.tree) 
     for ci in col_inds
         cn = colname(df, ci)
         set_branch_status!(df.tree, "$(cn)*", true)
-        #add_cache!(df.tree, "$(cn)*") 
+        add_cache!(df.tree, "$(cn)*") 
     end
     for ri in row_ind
         #do ROOT::TTree::GetEntry(ri) with an arbitrary column
-        df[ri, col_inds[1], true]
+        #df[ri, col_inds[1], true]
+        ROOT.getentry!(df.tree, ri)
 
         #get all the column values
         for ci in col_inds
@@ -115,7 +168,7 @@ function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::AbstractVector{R},
     nas = BitArray(lenvals)
     i=1
     for ri in row_ind
-        x = df[ri, col_ind]::Union(NAtype, T)
+        x = df[ri, col_ind]
         if !isna(x)
             da[i] = x
             nas[i] = false
