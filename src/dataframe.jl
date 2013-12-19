@@ -20,7 +20,7 @@ TreeDataFrame(df::TreeDataFrame) = TreeDataFrame(df.file.s)
 
 DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
 DataFrames.ncol(df::TreeDataFrame) = length(df.tree.colnames)
-DataFrames.colnames(df::TreeDataFrame) = df.tree.colnames
+DataFrames.colnames(df::TreeDataFrame) = vcat(df.tree.colnames, colnames(df.ramdf))
 
 function colname{T <: Integer}(df::TreeDataFrame, col_ind::T)
     return colnames(df)[col_ind]
@@ -33,7 +33,7 @@ end
 function coltype(df::TreeDataFrame, col_ind::ColumnIndex)
     ci = find(x -> x == colname(df, col_ind), colnames(df))
     if length(ci) == 1
-        return df.tree.coltypes[ci[1]]
+        ci[1] <= length(df.tree.coltypes) ? df.tree.coltypes[ci[1]] : Any
     else
         warn("undefined column type for $col_ind")
         return Any
