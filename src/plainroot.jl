@@ -1,6 +1,5 @@
 const libplainroot = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libplainroot")
 using DataFrames
-using DataArrays
 
 typealias ColumnIndex Union(Real, String, Symbol)
 
@@ -11,11 +10,15 @@ type TFile
     s::String
 end
 
-function TFile(fname, op="")
-    TFile(ccall(
+function TFile(fname::ASCIIString, op="")
+    tf = ccall(
         (:new_tfile, libplainroot),
         Ptr{Void}, (Ptr{Uint8}, Ptr{Uint8}), string(fname), string(op)
-    ), fname)
+    )
+    if tf == C_NULL
+        error("failed to open TFile $(string(fname))")
+    end
+    return TFile(tf, fname)
 end
 
 close(tf::TFile) = ccall(
@@ -154,7 +157,7 @@ end
 
 function Base.getindex{T <: ColumnIndex}(tree::TTree, s::T, checkna=true)
     br = tree.branches[symbol(s)]
-    bt = typeof(br).parameters[1]
+    const bt = typeof(br).parameters[1]
 
     if bt <: Uint8 #is string
         x = bytestring(br.value.x[1:(indmin(br.value.x)-1)])
@@ -166,7 +169,7 @@ function Base.getindex{T <: ColumnIndex}(tree::TTree, s::T, checkna=true)
 
     if checkna
         na = br.na.x[1]
-        return na ? NA : x
+        return (na ? NA : x)
     else
         return x
     end

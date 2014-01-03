@@ -22,6 +22,10 @@ DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
 DataFrames.ncol(df::TreeDataFrame) = length(df.tree.colnames)
 DataFrames.colnames(df::TreeDataFrame) = vcat(df.tree.colnames, colnames(df.ramdf))
 
+function show(df::TreeDataFrame)
+    println("$(nrow(df))x$(ncol(df))")
+end
+
 function colname{T <: Integer}(df::TreeDataFrame, col_ind::T)
     return colnames(df)[col_ind]
 end
