@@ -31,6 +31,16 @@ get(tf::TFile, key) = ccall(
     Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
 )
 
+mkdir(tf::TFile, key) = ccall(
+    (:tfile_mkdir, libplainroot),
+    Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
+)
+
+cd(tf::TFile, key) = ccall(
+    (:tfile_cd, libplainroot),
+    Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
+)
+
 type TTree
     p::Ptr{Void}
     name::String
