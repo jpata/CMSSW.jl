@@ -49,11 +49,13 @@ type TTree
     branches::Associative
 end
 
+#short type names used in ROOT's TBranch constructor for the leaflist
 typemap = {
     Float32 => "F",
     Float64 => "D",
     Int32 => "I",
     Int64 => "L",
+    Uint64 => "l",
 #    ASCIIString => "C",
     Uint8 => "C",
     Bool => "O"
@@ -83,7 +85,7 @@ function attach{T}(b::Branch{T}, tree_p::Ptr{Void}, name)
     )
 end
 
-Branch{T <: Number}(defval::T) = Branch{T}([defval], C_NULL)
+Branch{T <: Number}(defval::T) = Branch{T}(T[defval], C_NULL)
 #Branch{T <: ASCIIString}(defval::T) = Branch{T}([defval], C_NULL)
 Branch{T <: ASCIIString}(defval::T) = Branch{Uint8}(convert(Vector{Uint8}, defval), C_NULL)
 Branch{T <: Any}(defval::T) = error("not implemented")
@@ -136,23 +138,23 @@ function strcpy(a, b)
     )
 end
 
-function Base.setindex!(tree::TTree, x::String, s::Symbol)
+function Base.setindex!{T <: ASCIIString}(tree::TTree, x::T, s::Symbol)
     br = tree.branches[s]
-    T = typeof(br).parameters[1]
+    #T = typeof(br).parameters[1]
     strcpy(br.value.x, x)
     br.na.x[1] = false
 end
 
-function Base.setindex!(tree::TTree, x::Number, s::Symbol)
+function Base.setindex!{T <: Number}(tree::TTree, x::T, s::Symbol)
     br = tree.branches[s]
-    T = typeof(br).parameters[1]
-    br.value.x[1] = convert(T, x)
+    #T = typeof(br).parameters[1]
+    #br.value.x[1] = convert(T, x)
+    br.value.x[1] = x
     br.na.x[1] = false
 end
 
-function Base.setindex!(tree::TTree, x::NAtype, s::Symbol)
+function Base.setindex!{T <: NAtype}(tree::TTree, x::T, s::Symbol)
     br = tree.branches[s]
-    T = typeof(br).parameters[1]
     for i=1:length(br.value.x)
         br.value.x[i] = 0
     end
@@ -282,6 +284,7 @@ plain_type_table = {
     "Double_t"=>Float64,
     "Int_t"=>Int32,
     "Long64_t"=>Int64,
+    "ULong64_t"=>Uint64,
     "Char_t"=>ASCIIString,
     "Bool_t"=>Bool
 }
