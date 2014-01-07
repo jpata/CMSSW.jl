@@ -148,8 +148,10 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(
     reset_cache!(df.tree) 
     for ci in col_inds
         cn = colname(df, ci)
-        set_branch_status!(df.tree, "$(cn)*", true)
-        add_cache!(df.tree, "$(cn)*") 
+        if !in(cn, colnames(df.ramdf))
+            set_branch_status!(df.tree, "$(cn)*", true)
+            add_cache!(df.tree, "$(cn)*")
+        end
     end
     for ri in row_ind
         #do ROOT::TTree::GetEntry(ri) with an arbitrary column
