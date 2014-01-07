@@ -246,12 +246,14 @@ function writetree(fn, df::DataFrame)
     close(tf)
 end
 
-function readtree(fn; progress=false)
+function readtree(fn; progress=false, maxrows=0)
     tf = TFile(fn, "READ")
     tree = TTree(tf, "dataframe")
     #reset_cache!(tree)
     #add_cache!(tree, "*")
-    n = length(tree)
+    n = maxrows > 0 ? maxrows : length(tree)
+    n = min(length(tree), n)
+    
     println("creating DataFrame with $n rows, $(length(tree.colnames)) columns")
     df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.colnames), n)
     cns = map(symbol, colnames(df)) 
