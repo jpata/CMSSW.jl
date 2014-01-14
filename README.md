@@ -1,12 +1,12 @@
 ROOT.jl
 =======
 
-A toy experiment interfacing ROOT (http://root.cern.ch) and Julia (http://julialang.org) through FWLite
+A toy experiment interfacing ROOT (http://root.cern.ch) and Julia (http://julialang.org) through FWLite. Note that this is highly experimental, very much WIP and expected to change.
 
 Installation
 ============
 
-* Requirements: the `cmsrel` command must be available (must have done a proper `source cmsset_default.sh`)
+* Requirements: the `cmsrel` command must be available (must have done a proper `source cmsset_default.sh`, only available to members of the CMS collaboration for the time being).
 
 To get the package do
 
@@ -34,3 +34,4 @@ TODO
 
 1. Move to BinDeps
 2. Move to Clang.jl
+3. Separate ROOT6 and CMSSW to separate repositorie,s experiment using Cling.
