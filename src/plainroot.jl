@@ -10,7 +10,7 @@ type TFile
     s::String
 end
 
-function TFile(fname::ASCIIString, op="")
+function TFile(fname::String, op="")
     tf = ccall(
         (:new_tfile, libplainroot),
         Ptr{Void}, (Ptr{Uint8}, Ptr{Uint8}), string(fname), string(op)
@@ -253,9 +253,10 @@ function readtree(fn; progress=false, maxrows=0)
     #add_cache!(tree, "*")
     n = maxrows > 0 ? maxrows : length(tree)
     n = min(length(tree), n)
-    
+    tic()
     println("creating DataFrame with $n rows, $(length(tree.colnames)) columns")
     df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.colnames), n)
+    toc() 
     cns = map(symbol, colnames(df)) 
     println("looping over $n events")
     for i=1:n
