@@ -211,6 +211,8 @@ function Base.getindex(ev::Events, tag::InputTag, handle::Handle)
         ret = get_by_label_vfloat(ev.ev, handle.p, tag)
     elseif handle.t == Float64
         ret = get_by_label_double(ev.ev, handle.p, tag)
+    elseif handle.t == Float32
+        ret = get_by_label_float(ev.ev, handle.p, tag)
     elseif handle.t == Int32
         ret = get_by_label_int(ev.ev, handle.p, tag)
     elseif handle.t == Uint32
