@@ -168,7 +168,7 @@ function get_current_file_name(ev::Events)
         (:events_tfile_path, libfwlite),
         Ptr{Uint8}, (Ptr{Void}, ), ev.ev
     )
-    return bytestring(ret)
+    return split(bytestring(ret), ":")[1]
 end
 
 function where_file(ev::Events)
