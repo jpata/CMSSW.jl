@@ -1,5 +1,11 @@
 #!/bin/bash
+uname -a
 echo "Julia+CMSSW wrapper"
-julia --version
+
+julia -E "versioninfo()"
+
+#get the absolute path of this script
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+#set the CMSSW path
 source $scriptdir/setenv.sh && $LOCAL_JULIA_DIR/usr/bin/julia-readline -F $@
