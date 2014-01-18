@@ -32,19 +32,28 @@ df2[3, "x"] = 123.0
 @test all(df2[:, "y"] .== DataVector["asd", "bsd", "xyz"])
 @test all(df2["x"] .== [1.0, 2.0, 123.0])
 
-big_df = DataFrame(x=[rand() for x in 1:10000000], y=[10.0*rand() for x in 1:10000000], z=[0.0001*rand() for x in 1:10000000])
+N=1000
+big_df = DataFrame(x=[rand() for x in 1:N], y=[10.0*rand() for x in 1:N], z=[0.0001*rand() for x in 1:N])
 tic()
 writetree("big_df.root", big_df)
 x = toq()
 println("wrote $(nrow(big_df)) events, $(length(colnames(big_df))) columns in $x seconds")
 
-big_df2 = TreeDataFrame("big_df.root")
+big_df2 = TreeDataFrame("big_df.root", "rw")
 tic();
 big_df3 = readtree("big_df.root")
 x = toq()
 println("read $(nrow(big_df)) events, $(length(colnames(big_df))) columns in $x seconds")
 
 @test nrow(big_df2)==nrow(big_df3)
+
+br = ROOT.NABranch(convert(Float32, 0.0))
+ROOT.attach(br, big_df2.tree, "newcol")
+
+for i=1:nrow(big_df2)
+    ROOT.setval!(br, convert(Float32, i))
+    ROOT.fill!(br)
+end
 
 #cleanup
 rm("test.root")
