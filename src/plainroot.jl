@@ -10,6 +10,12 @@ type TFile
     s::String
 end
 
+immutable TreeBranch
+    name::Ptr{Uint8}
+    dtype::Ptr{Uint8}
+    pbranch::Ptr{Void}
+end
+
 function TFile(fname::String, op="")
     tf = ccall(
         (:new_tfile, libplainroot),
@@ -25,6 +31,7 @@ close(tf::TFile) = ccall(
     (:tfile_close, libplainroot),
     Void, (Ptr{Void}, ), tf.p
 )
+
 
 get(tf::TFile, key) = ccall(
     (:tfile_get, libplainroot),
@@ -49,6 +56,11 @@ type TTree
     branches::Associative
 end
 
+write(tt::TTree) = ccall(
+    (:ttree_write, libplainroot),
+    Void, (Ptr{Void}, ), tt.p
+)
+
 #short type names used in ROOT's TBranch constructor for the leaflist
 typemap = {
     Float32 => "F",
@@ -63,12 +75,33 @@ typemap = {
 
 type Branch{T}
     x::Vector{T}
-    p_x::Ptr{Void}
+    p_x::Ptr{Void} #pointer to TBranch
 end
 
 type NABranch{T}
     value::Branch{T}
     na::Branch{Bool}
+end
+
+NABranch{T <: Any}(x::T) = NABranch{T}(Branch(null(T)), Branch(false))
+
+function setval!(b, x)
+    b.na.x[1] = isna(x)
+    b.value.x[1] = isna(x) ? null(T) : x
+    fill(b.na)
+    fill(b.value)
+end
+
+fill{T}(tb::Branch{T}) = ccall(
+    (:tbranch_fill, libplainroot),
+    Void, (Ptr{Void}, ), tb.p_x
+)
+
+attach{T}(b::Branch{T}, tree::TTree, name) = attach(b, tree.p, name)
+
+function attach{T}(b::NABranch{T}, tree::TTree, name)
+    attach(b.value, tree, name)
+    attach(b.na, tree, "$(name)_ISNA")
 end
 
 function attach{T}(b::Branch{T}, tree_p::Ptr{Void}, name)
@@ -163,8 +196,8 @@ end
 
 function coltype{T <: ColumnIndex}(tree::TTree, cn::T)
     br = tree.branches[symbol(cn)]
-    T = typeof(br).parameters[1]
-    return T
+    X = typeof(br).parameters[1]
+    return X
 end
 
 function Base.getindex{T <: ColumnIndex}(tree::TTree, s::T, checkna=true)
@@ -192,6 +225,18 @@ function fill!(tree::TTree)
         (:ttree_fill, libplainroot),
         Clong, (Ptr{Void}, ), tree.p,
     )
+end
+
+function fill!(branch::Branch)
+    return ccall(
+        (:tbranch_fill, libplainroot),
+        Clong, (Ptr{Void}, ), branch.p_x,
+    )
+end
+
+function fill!(branch::NABranch)
+    fill!(branch.value)
+    fill!(branch.na)
 end
 
 function set_branch_status!(tree::TTree, brstring::ASCIIString, status::Bool)
@@ -253,12 +298,12 @@ function readtree(fn; progress=false, maxrows=0)
     #add_cache!(tree, "*")
     n = maxrows > 0 ? maxrows : length(tree)
     n = min(length(tree), n)
-    tic()
-    println("creating DataFrame with $n rows, $(length(tree.colnames)) columns")
+    progress && tic()
+    progress && println("creating DataFrame with $n rows, $(length(tree.colnames)) columns")
     df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.colnames), n)
-    toc() 
+    progress && toc() 
     cns = map(symbol, colnames(df)) 
-    println("looping over $n events")
+    progress && println("looping over $n events")
     for i=1:n
         if progress && (i % 1000 == 0)
             print(".")
@@ -276,11 +321,6 @@ function readtree(fn; progress=false, maxrows=0)
     return df
 end
 
-immutable TreeBranch
-    name::Ptr{Uint8}
-    dtype::Ptr{Uint8}
-    pbranch::Ptr{Void}
-end
 
 plain_type_table = {
     "Float_t"=>Float32,
