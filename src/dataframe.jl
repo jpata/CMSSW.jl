@@ -9,8 +9,9 @@ type TreeDataFrame <: AbstractDataFrame
     ramdf::DataFrame
 end
 
-function TreeDataFrame(fn::ASCIIString)
-    file = ROOT.TFile(fn, "READ")
+function TreeDataFrame(fn::String, mode="r")
+    const modetable = {"r"=>"READ", "rw"=>"UPDATE", "w"=>"RECREATE"}
+    file = ROOT.TFile(string(fn), modetable[mode])
     tree = ROOT.TTree(file, "dataframe")
     ramdf = DataFrame()
     return TreeDataFrame(file, tree, ramdf)
