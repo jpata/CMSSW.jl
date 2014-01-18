@@ -75,7 +75,6 @@ for i=1:length(ev)
     sum_jets += (!isna(nj) ? nj : 0)
 
     nt = ev[n_tags]
-    #println("$nj, $nt, $ct")
 
     #Loop over the muons
     for (pt, eta) in zip(mupt, mueta)
@@ -88,7 +87,8 @@ for i=1:length(ev)
     idx = where_file(ev)
     
     fname = get_current_file_name(ev)
-    println(fname)
+     
+    @test fname == testfile
 
     push!(ids, id)
 
@@ -103,5 +103,3 @@ toc()
 @test sum([isna(c) for c in cos_thetas])==84
 @test pass_hlts == 39
 @test sum_jets == 49
-
-println("Tests conducted successfully")
