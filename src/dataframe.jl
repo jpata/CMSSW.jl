@@ -1,100 +1,53 @@
 using ROOT
 using DataFrames
-import DataFrames.nrow, DataFrames.ncol, DataFrames.colnames
+import DataFrames.nrow, DataFrames.ncol, DataFrames.names, DataFrames.types
 import Base.getindex, Base.setindex!, Base.display
 
 type TreeDataFrame <: AbstractDataFrame
     file::ROOT.TFile
     tree::ROOT.TTree
-    ramdf::DataFrame
 end
 
 function TreeDataFrame(fn::String, mode="r")
     const modetable = {"r"=>"READ", "rw"=>"UPDATE", "w"=>"RECREATE"}
     file = ROOT.TFile(string(fn), modetable[mode])
     tree = ROOT.TTree(file, "dataframe")
-    ramdf = DataFrame()
-    return TreeDataFrame(file, tree, ramdf)
+    return TreeDataFrame(file, tree)
 end
 
 TreeDataFrame(df::TreeDataFrame) = TreeDataFrame(df.file.s)
 
 DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
-DataFrames.ncol(df::TreeDataFrame) = length(df.tree.colnames)
-DataFrames.colnames(df::TreeDataFrame) = vcat(df.tree.colnames, colnames(df.ramdf))
+DataFrames.ncol(df::TreeDataFrame) = length(df.tree.names)
+DataFrames.names(df::TreeDataFrame) = df.tree.names
 
 function show(df::TreeDataFrame)
     println("$(nrow(df))x$(ncol(df))")
 end
 
 function colname{T <: Integer}(df::TreeDataFrame, col_ind::T)
-    return colnames(df)[col_ind]
+    return names(df)[col_ind]
 end
 
 function colname{T <: ColumnIndex}(df::TreeDataFrame, col_ind::T)
     return string(col_ind) 
 end
 
-function coltype(df::TreeDataFrame, col_ind::ColumnIndex)
-    ci = find(x -> x == colname(df, col_ind), colnames(df))
-    if length(ci) == 1
-        ci[1] <= length(df.tree.coltypes) ? df.tree.coltypes[ci[1]] : Any
-    else
-        warn("undefined column type for $col_ind")
-        return Any
-    end
+function coltype(df::TreeDataFrame, col_ind::Integer)
+    ci = find(x -> x == colname(df, col_ind), names(df))
+    cts = df.tree.coltypes
+    return cts[ci[1]]
 end
 
-function Base.setindex!{R <: Real}(df::TreeDataFrame, val::R, col_ind::ColumnIndex)
-    if nrow(df.ramdf)==0
-        df.ramdf[col_ind] = DataArray(val, nrow(df))
-    else
-        df.ramdf[col_ind] = val
-    end
-end
-
-function Base.setindex!{R <: Real, K <: Number}(
-    df::TreeDataFrame,
-    val::R,
-    row_ind::AbstractVector{K},
-    col_ind::ColumnIndex
-    )
-
-    df.ramdf[row_ind, col_ind] = val
-end
-
-function Base.setindex!{R <: Real, K <: Number}(
-    df::TreeDataFrame,
-    vals::AbstractVector{R},
-    row_ind::AbstractVector{K},
-    col_ind::ColumnIndex
-    )
-    
-    df.ramdf[row_ind, col_ind] = vals
-end
-
-function Base.setindex!{R <: Real}(
-    df::TreeDataFrame,
-    vals::AbstractVector{R},
-    col_ind::ColumnIndex
-    )
-    df.ramdf[col_ind] = vals
-end
-
+DataFrames.types(df::TreeDataFrame) = [coltype(df, x) for x=1:length(names(df))] 
 
 function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::ColumnIndex, doget=true)
-    
-    #prefer the column in RAM
-    if string(col_ind) in colnames(df.ramdf)
-        return df.ramdf[row_ind, col_ind]
-    else
-        doget && ROOT.getentry!(df.tree, row_ind)
-        cn = colname(df, col_ind)
-        return df.tree[cn]
-    end
+    cn = colname(df, col_ind)
+    doget && ROOT.getentry!(df.tree, row_ind)
+    return df.tree[cn]
 end
 
-Base.display(df::TreeDataFrame) = show(df.tree.colnames)
+Base.display(df::TreeDataFrame) = show(df.tree.names)
 
 function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, row_ind::Real, col_inds::AbstractVector{T})
     DataFrame({colname(df, ci) => df[row_ind, ci] for ci in col_inds})
@@ -149,10 +102,8 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(
     reset_cache!(df.tree) 
     for ci in col_inds
         cn = colname(df, ci)
-        if !in(cn, colnames(df.ramdf))
-            set_branch_status!(df.tree, "$(cn)*", true)
-            add_cache!(df.tree, "$(cn)*")
-        end
+        set_branch_status!(df.tree, "$(cn)*", true)
+        add_cache!(df.tree, "$(cn)*")
     end
     for ri in row_ind
         #do ROOT::TTree::GetEntry(ri) with an arbitrary column
@@ -189,7 +140,7 @@ function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::AbstractVector{R},
 end
 
 function to_df(df::TreeDataFrame)
-    return df[1:nrow(df), colnames(df)]
+    return df[1:nrow(df), names(df)]
 end
 
 export TreeDataFrame

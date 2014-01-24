@@ -1,5 +1,7 @@
 const libplainroot = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libplainroot")
-using DataFrames
+using DataArrays, DataFrames
+import DataArrays.NAtype
+import Base.close
 
 typealias ColumnIndex Union(Real, String, Symbol)
 
@@ -27,10 +29,14 @@ function TFile(fname::String, op="")
     return TFile(tf, fname)
 end
 
-close(tf::TFile) = ccall(
-    (:tfile_close, libplainroot),
-    Void, (Ptr{Void}, ), tf.p
-)
+function close(tf::TFile)
+    @assert tf.p != C_NULL "TFile was already closed"
+    ccall(
+        (:tfile_close, libplainroot),
+        Void, (Ptr{Void}, ), tf.p
+    )
+    tf.p = C_NULL
+end
 
 
 get(tf::TFile, key) = ccall(
@@ -51,15 +57,17 @@ cd(tf::TFile, key) = ccall(
 type TTree
     p::Ptr{Void}
     name::String
-    colnames::Vector{String}
+    names::Vector{String}
     coltypes::Vector{Type}
     branches::Associative
+    file::TFile
 end
 
 write(tt::TTree) = ccall(
     (:ttree_write, libplainroot),
     Void, (Ptr{Void}, ), tt.p
 )
+
 
 #short type names used in ROOT's TBranch constructor for the leaflist
 typemap = {
@@ -78,9 +86,19 @@ type Branch{T}
     p_x::Ptr{Void} #pointer to TBranch
 end
 
+write(t::Branch) = ccall(
+    (:tbranch_write, libplainroot),
+    Void, (Ptr{Void}, ), t.p_x
+)
+
 type NABranch{T}
     value::Branch{T}
     na::Branch{Bool}
+end
+
+function write(t::NABranch)
+    write(t.value)
+    write(t.na)
 end
 
 NABranch{T <: Any}(x::T) = NABranch{T}(Branch(null(T)), Branch(false))
@@ -102,6 +120,7 @@ attach{T}(b::Branch{T}, tree::TTree, name) = attach(b, tree.p, name)
 function attach{T}(b::NABranch{T}, tree::TTree, name)
     attach(b.value, tree, name)
     attach(b.na, tree, "$(name)_ISNA")
+    tree = TTree(tree.file, tree.name)      
 end
 
 function attach{T}(b::Branch{T}, tree_p::Ptr{Void}, name)
@@ -111,7 +130,7 @@ function attach{T}(b::Branch{T}, tree_p::Ptr{Void}, name)
         Ptr{Void}, (Ptr{Void}, Ptr{Uint8}, Ptr{Ptr{Void}}, Ptr{Uint8}), tree_p, string(name), pointer(b.x), "$name/$(typemap[T])"
     )
     b.p_x = p
-    return ccall(
+    ccall(
         (:ttree_set_branch_address, libplainroot),
         Cint, (Ptr{Void}, Ptr{Ptr{Void}}, Ptr{Uint8}),
         tree_p, pointer(b.x), string(name)
@@ -128,10 +147,17 @@ null{T <: String}(::Type{T}) = bytestring(convert(Vector{Uint8}, zeros(512)))
 null{T <: Any}(::Type{T}) = error("not implemented for $T")
 null{T <: NAtype}(::Type{T}) = NA
 
-function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
+function TTree(
+    tf::TFile, name,
+    names=Any[],
+    coltypes=Any[]
+    )
     tf.p != C_NULL || error("TFile $(tf) was not opened successfully")
     tree = get(tf, name)
+    
+    
     if tree == C_NULL
+        #println("creating new TTree $name")
         tree = ccall(
             (:new_ttree, libplainroot),
             Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf.p, string(name)
@@ -140,7 +166,8 @@ function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
         brs = ROOT.ttree_get_branches(tree)
         for (name, dt) in brs
             contains(name, "_ISNA") && continue
-            push!(colnames, name)
+            name in names && continue #duplicate column
+            push!(names, name)
             push!(coltypes, dt)
         end
     end
@@ -148,8 +175,7 @@ function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
 
     branches = Dict{Symbol, NABranch}()
 
-
-    for (cn, ct) in zip(colnames, coltypes)
+    for (cn, ct) in zip(names, coltypes)
         #println(cn, " ", ct)
         x = Branch(null(ct))
         na = Branch(false) #the branch which signifies if a value is available
@@ -159,7 +185,11 @@ function TTree(tf::TFile, name, colnames=Any[], coltypes=Any[])
 
         branches[symbol(cn)] = NABranch(x, na)
     end
-    return TTree(tree, name, convert(Vector{String}, colnames), convert(Vector{Type}, coltypes), branches)
+    return TTree(
+        tree, name, convert(Vector{String}, names),
+        convert(Vector{Type}, coltypes),
+        branches, tf
+    )
 end
 
 function strcpy(a, b)
@@ -227,18 +257,6 @@ function fill!(tree::TTree)
     )
 end
 
-function fill!(branch::Branch)
-    return ccall(
-        (:tbranch_fill, libplainroot),
-        Clong, (Ptr{Void}, ), branch.p_x,
-    )
-end
-
-function fill!(branch::NABranch)
-    fill!(branch.value)
-    fill!(branch.na)
-end
-
 function set_branch_status!(tree::TTree, brstring::ASCIIString, status::Bool)
     return ccall(
         (:ttree_set_branch_status, libplainroot),
@@ -270,39 +288,48 @@ end
 
 
 function Base.length(tree::TTree)
+    @assert tree.p != C_NULL
+    @assert tree.file.p != C_NULL
+
     return ccall(
         (:ttree_get_entries, libplainroot),
         Clong, (Ptr{Void}, ), tree.p
     )
 end
 
-function writetree(fn, df::DataFrame)
+function writetree(fn, df::AbstractDataFrame)
     tf = TFile(fn, "RECREATE")
-    tree = TTree(tf, "dataframe", colnames(df), coltypes(df))
+    #println(names(df))
+    #println(types(df))
+    tree = TTree(tf, "dataframe", names(df), types(df))
+    #println(tree.branches |> keys |> collect) 
     #reset_cache!(tree)
     #add_cache!(tree, "*")
     for i=1:nrow(df)
-        for cn in colnames(df)
+        for cn in names(df)
             tree[symbol(cn)] = NA #zero out (for strings)
             tree[symbol(cn)] = df[i, cn]
         end
         fill!(tree)
     end
+    write(tree)
     close(tf)
 end
 
 function readtree(fn; progress=false, maxrows=0)
     tf = TFile(fn, "READ")
     tree = TTree(tf, "dataframe")
+    #println(tree.names)
+
     #reset_cache!(tree)
     #add_cache!(tree, "*")
     n = maxrows > 0 ? maxrows : length(tree)
     n = min(length(tree), n)
     progress && tic()
-    progress && println("creating DataFrame with $n rows, $(length(tree.colnames)) columns")
-    df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.colnames), n)
+    progress && println("creating DataFrame with $n rows, $(length(tree.names)) columns")
+    df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.names), n)
     progress && toc() 
-    cns = map(symbol, colnames(df)) 
+    cns = map(symbol, names(df)) 
     progress && println("looping over $n events")
     for i=1:n
         if progress && (i % 1000 == 0)
@@ -363,5 +390,6 @@ function ttree_get_branches(ttree::Ptr{Void})
     return to_arr(arr, TreeBranch)
 end
 
+export close
 export writetree, readtree, ColumnIndex, coltype
 export set_branch_status!, reset_cache!, add_cache!
