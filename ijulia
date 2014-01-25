@@ -1,0 +1,8 @@
+#!/bin/bash
+
+PYPATH=$(dirname `which python`)
+PYHOME=`python -c "import sys;print ':'.join(sys.path)"`
+#get the absolute path of this script
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+source $scriptdir/setenv.sh && PATH=$PYPATH:$PATH LD_LIBRARY_PATH=/lib:$LD_LIBRARY_PATH PYTHONPATH=$PYHOME:$PYTHONPATH $PYPATH/ipython notebook --profile=julia
