@@ -1,7 +1,7 @@
 using ROOT
 using DataFrames
 import DataFrames.nrow, DataFrames.ncol, DataFrames.names, DataFrames.types
-import Base.getindex, Base.setindex!, Base.display
+import Base.getindex, Base.setindex!, Base.display, Base.show
 
 type TreeDataFrame <: AbstractDataFrame
     file::ROOT.TFile
@@ -47,7 +47,7 @@ function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::Column
     return df.tree[cn]
 end
 
-Base.display(df::TreeDataFrame) = show(df.tree.names)
+Base.show(io::IO, df::TreeDataFrame) = show(io, df[1:min(nrow(df),10), :])
 
 function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, row_ind::Real, col_inds::AbstractVector{T})
     DataFrame({colname(df, ci) => df[row_ind, ci] for ci in col_inds})
