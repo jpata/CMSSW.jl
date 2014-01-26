@@ -21,8 +21,8 @@ DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
 DataFrames.ncol(df::TreeDataFrame) = length(df.tree.names)
 DataFrames.names(df::TreeDataFrame) = df.tree.names
 
-function show(df::TreeDataFrame)
-    println("$(nrow(df))x$(ncol(df))")
+function Base.show(io::IO, df::TreeDataFrame) 
+    show(io, df[1:5, :])
 end
 
 function colname{T <: Integer}(df::TreeDataFrame, col_ind::T)
@@ -106,8 +106,6 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(
         add_cache!(df.tree, "$(cn)*")
     end
     for ri in row_ind
-        #do ROOT::TTree::GetEntry(ri) with an arbitrary column
-        #df[ri, col_inds[1], true]
         ROOT.getentry!(df.tree, ri)
 
         #get all the column values
@@ -116,7 +114,11 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(
         end
         i += 1
     end
-    DataFrame({colname(df, ci) => cols[ci] for ci in col_inds})
+    ret = DataFrame()
+    for ci in col_inds
+        ret[colname(df, ci)] = cols[ci]
+    end
+    return ret
 end
 
 function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::AbstractVector{R}, col_ind::ColumnIndex)
