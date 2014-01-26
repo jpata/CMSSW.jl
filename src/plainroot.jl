@@ -6,6 +6,7 @@ import Base.close
 typealias ColumnIndex Union(Real, String, Symbol)
 
 import Base.Test
+import Base.get, Base.cd, Base.mkdir, Base.write, Base.close, Base.fill, Base.mkpath
 
 type TFile
     p::Ptr{Void}
@@ -29,7 +30,7 @@ function TFile(fname::String, op="")
     return TFile(tf, fname)
 end
 
-function close(tf::TFile)
+function Base.close(tf::TFile)
     @assert tf.p != C_NULL "TFile was already closed"
     ccall(
         (:tfile_close, libplainroot),
@@ -39,20 +40,28 @@ function close(tf::TFile)
 end
 
 
-get(tf::TFile, key) = ccall(
+Base.get(tf::TFile, key) = ccall(
     (:tfile_get, libplainroot),
     Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
 )
 
-mkdir(tf::TFile, key) = ccall(
+Base.mkdir(tf::Ptr{Void}, key) = ccall(
     (:tfile_mkdir, libplainroot),
-    Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
+    Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf, string(key)
 )
 
-cd(tf::TFile, key) = ccall(
+Base.mkdir(tf::TFile, key) = mkdir(tf.p, key)
+
+Base.cd(tf::TFile, key="") = ccall(
     (:tfile_cd, libplainroot),
-    Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
+    Bool, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
 )
+
+Base.ls(tf::TFile) = ccall(
+    (:tfile_ls, libplainroot),
+    Void, (Ptr{Void}, ), tf.p,
+)
+
 
 type TTree
     p::Ptr{Void}
@@ -63,11 +72,12 @@ type TTree
     file::TFile
 end
 
-write(tt::TTree) = ccall(
-    (:ttree_write, libplainroot),
-    Void, (Ptr{Void}, ), tt.p
+Base.write(x::Ptr{Void}) = ccall(
+    (:tobject_write, libplainroot),
+    Void, (Ptr{Void}, ), x
 )
 
+Base.write(tt::TTree) = write(tt.p)
 
 #short type names used in ROOT's TBranch constructor for the leaflist
 typemap = {
@@ -86,22 +96,26 @@ type Branch{T}
     p_x::Ptr{Void} #pointer to TBranch
 end
 
-write(t::Branch) = ccall(
-    (:tbranch_write, libplainroot),
-    Void, (Ptr{Void}, ), t.p_x
-)
+Base.write(t::Branch) = write(t.p_x)
 
 type NABranch{T}
     value::Branch{T}
     na::Branch{Bool}
 end
 
-function write(t::NABranch)
+function Base.write(t::NABranch)
     write(t.value)
     write(t.na)
 end
 
+Base.write(t::TTree) = write(t.p)
+
 NABranch{T <: Any}(x::T) = NABranch{T}(Branch(null(T)), Branch(false))
+
+Base.fill{T}(tb::Branch{T}) = ccall(
+    (:tbranch_fill, libplainroot),
+    Void, (Ptr{Void}, ), tb.p_x
+)
 
 function setval!(b, x)
     b.na.x[1] = isna(x)
@@ -109,11 +123,6 @@ function setval!(b, x)
     fill(b.na)
     fill(b.value)
 end
-
-fill{T}(tb::Branch{T}) = ccall(
-    (:tbranch_fill, libplainroot),
-    Void, (Ptr{Void}, ), tb.p_x
-)
 
 attach{T}(b::Branch{T}, tree::TTree, name) = attach(b, tree.p, name)
 
@@ -390,6 +399,116 @@ function ttree_get_branches(ttree::Ptr{Void})
     return to_arr(arr, TreeBranch)
 end
 
+function removeinf(arr)
+    for i=1:length(arr)
+        if arr[i]==-Inf
+            arr[i] = -e^10#nextfloat(-Inf)
+        end
+        if arr[i]==Inf
+            arr[i] = e^10#prevfloat(Inf)
+        end
+    end
+    return arr
+end
+
+function new_th1d(
+    name::ASCIIString,
+    edges::AbstractVector, #low_under, low_1, low_2, ... , low_over, high_over
+    bins::AbstractVector, #under, c1, c2, ... , over
+    errors::AbstractVector,
+    labels::AbstractVector=[]
+)
+    @assert length(edges)==length(bins)+1
+    @assert length(edges)==length(errors)+1
+
+    #remove underflow low and overflow high edges
+    edges = deepcopy(edges[2:length(edges)-1])
+
+    removeinf(edges)
+    @assert !any(isnan(edges))
+
+    if length(labels)==0
+        labels = [@sprintf("[%.2f,%.2f)", edges[i-1], edges[i]) for i=2:length(edges)]
+    end
+    @assert length(edges)==length(labels)+1
+
+    for i=1:length(edges)
+        if edges[i]==-Inf
+            edges[i] = -e^10#nextfloat(-Inf)
+        end
+        if edges[i]==Inf
+            edges[i] = e^10#prevfloat(Inf)
+        end
+        if isnan(edges[i])
+            error("edges must not contain nan: ", join(edges, ","))
+        end
+    end
+
+    hi = ccall(
+       (:new_th1d, libplainroot),
+       Ptr{Void},
+       (Ptr{Uint8}, Cuint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Ptr{Uint8}}),
+       name, length(edges),
+       convert(Vector{Float64}, edges),
+       convert(Vector{Float64}, bins),
+       convert(Vector{Float64}, errors),
+       convert(Vector{ASCIIString}, labels)
+    )
+    return hi
+end
+
+function new_th2d(
+    name::ASCIIString,
+    edges_x::Array{Float64, 1},
+    edges_y::Array{Float64, 1},
+    bins::Array{Float64, 2},
+    errors::Array{Float64, 2},
+    labels_x=[],
+    labels_y=[],
+)
+    @assert size(bins)==size(errors)
+    nx, ny = size(bins)
+    @assert length(edges_x) == nx+1
+    @assert length(edges_y) == ny+1
+
+    edges_x = deepcopy(edges_x[2:length(edges_x)-1])
+    edges_y = deepcopy(edges_y[2:length(edges_y)-1])
+
+    removeinf(edges_x)
+    removeinf(edges_y)
+
+    @assert !any(isnan(edges_x))
+    @assert !any(isnan(edges_y))
+
+    if length(labels_x)==0
+        labels_x = [@sprintf("x=[%.2f,%.2f)", edges_x[i-1], edges_x[i]) for i=2:length(edges_x)]
+    end
+    if length(labels_y)==0
+        labels_y = [@sprintf("y=[%.2f,%.2f)", edges_y[i-1], edges_y[i]) for i=2:length(edges_y)]
+    end
+    @assert length(edges_x)==length(labels_x)+1
+    @assert length(edges_y)==length(labels_y)+1
+
+    pbins = [pointer(bins[i,:]) for i=1:nx]
+    perrs = [pointer(errors[i,:]) for i=1:nx]
+    hi = ccall(
+       (:new_th2d, libplainroot),
+       Ptr{Void},
+       (
+        Ptr{Uint8},
+        Cuint, Cuint,
+        Ptr{Cdouble}, Ptr{Cdouble},
+        Ptr{Ptr{Cdouble}}, Ptr{Ptr{Cdouble}},
+        Ptr{Ptr{Uint8}}, Ptr{Ptr{Uint8}}
+        ),
+       name, length(edges_x), length(edges_y),
+       edges_x, edges_y, pbins, perrs,
+       convert(Vector{ASCIIString}, labels_x), convert(Vector{ASCIIString}, labels_y)
+    ) 
+
+end
+
 export close
 export writetree, readtree, ColumnIndex, coltype
 export set_branch_status!, reset_cache!, add_cache!
+export new_th1d, new_th2d, TFile

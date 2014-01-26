@@ -41,24 +41,49 @@ println("wrote $(nrow(big_df)) events, $(length(names(big_df))) columns in $x se
 
 big_df2 = TreeDataFrame("big_df.root", "rw")
 
-#big_df2["third"] = int(0)
-#for i=1:nrow(big_df2)
-#    big_df2[i, "third"] = i
-#end
-#writetree("big_df2.root", big_df2)
-
-#tic();
-#big_df3 = readtree("big_df2.root")
-#println(names(big_df3))
-#x = toq()
-#println("read $(nrow(big_df)) events, $(length(names(big_df))) columns in $x seconds")
-#println(big_df3)
-#
-#@test_approx_eq_eps sum(big_df3[1] - big_df[1]) 0 e^-5
-#@test_approx_eq_eps sum(big_df3[2] - big_df[2]) 0 e^-5
-#@test_approx_eq_eps sum(big_df3[3] - big_df[3]) 0 e^-5
-#
-#@test all(big_df3[4] .== Int64[1:nrow(big_df)])
-
 #cleanup
 rm("test.root")
+
+tf = TFile("test.root", "RECREATE")
+cd(tf)
+
+hi = new_th1d("myhist1d_1", linspace(-1,1, 10), [100*i for i=1:9], [10*i for i=1:9])
+write(hi)
+
+hi = new_th1d("myhist1d_2",
+	vcat(-Inf, [-1.0, 0.0, 1.0], Inf),
+	[100*i for i=1:4],
+	[10*i for i=1:4]
+)
+write(hi)
+
+cont  = zeros(Float64, 4,4)
+err = zeros(Float64, 4,4)
+for i=1:4
+	for j=1:4
+		cont[i,j] = 10*i+j
+		err[i,j] = 10*i + j
+	end
+end
+hi = new_th2d("myhist2d_1",
+	vcat(-Inf, [-1.0, 0.0, 1.0], Inf), vcat(-Inf, [-1.0, 0.0, 1.0], Inf),
+	cont, err,
+)
+write(hi)
+
+cont  = zeros(Float64, 4,9)
+err = zeros(Float64, 4,9)
+for i=1:4
+	for j=1:9
+		cont[i,j] = 10*i+j
+		err[i,j] = 10*i + j
+	end
+end
+
+hi = new_th2d("myhist2d_2",
+	vcat(-Inf, [-1.0, 0.0, 1.0], Inf), vcat(-Inf, linspace(-1, 1, 8), Inf),
+	cont, err,
+)
+write(hi)
+
+close(tf)
