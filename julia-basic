@@ -2,8 +2,6 @@
 uname -a
 echo "Julia+CMSSW wrapper"
 
-julia -E "versioninfo()"
-
 #use system python
 PYPATH=$(dirname `which python`)
 
