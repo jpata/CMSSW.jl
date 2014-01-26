@@ -239,24 +239,36 @@ function coltype{T <: ColumnIndex}(tree::TTree, cn::T)
     return X
 end
 
+function Base.getindex{T <: ColumnIndex, K <: Number}(tree::TTree, s::T, k::Type{K})
+    const br = tree.branches[s]::NABranch{K}
+    #const bt = typeof(br).parameters[1]
+    x = br.value.x[1]::K
+    return x
+end
+
+function Base.getindex{T <: ColumnIndex, K <: Uint8}(tree::TTree, s::T, k::Type{K})
+    const br = tree.branches[s]::NABranch{K}
+    return bytestring(br.value.x[1:(indmin(br.value.x)-1)]::Vector{Uint8})
+end
+
 function Base.getindex{T <: ColumnIndex}(tree::TTree, s::T, checkna=true)
     br = tree.branches[symbol(s)]
     const bt = typeof(br).parameters[1]
-
-    if bt <: Uint8 #is string
-        x = bytestring(br.value.x[1:(indmin(br.value.x)-1)])
-    elseif bt <: Number 
-        x = br.value.x[1] 
-    else
-        error("not implemented")
-    end
-
+    
     if checkna
-        na = br.na.x[1]
-        return (na ? NA : x)
+        na = br.na.x[1]::Bool
+        return (na ? NA : tree[s, bt])
     else
-        return x
+        return tree[s, bt]
     end
+
+   # if bt <: Uint8 #is string
+   #     x = bytestring(br.value.x[1:(indmin(br.value.x)-1)])
+   # elseif bt <: Number 
+   #     x = br.value.x[1]::bt 
+   # else
+   #     error("Tree.getindex not implemented for type $bt")
+   # end
 end
 
 function fill!(tree::TTree)
