@@ -468,8 +468,8 @@ function new_th2d(
 )
     @assert size(bins)==size(errors)
     nx, ny = size(bins)
-    @assert length(edges_x) == nx+1
-    @assert length(edges_y) == ny+1
+    @assert length(edges_x) == nx+1 "$(length(edges_x)) != $(nx+1) \n $edges_x"
+    @assert length(edges_y) == ny+1 "$(length(edges_y)) != $(ny+1) \n $edges_x"
 
     edges_x = deepcopy(edges_x[2:length(edges_x)-1])
     edges_y = deepcopy(edges_y[2:length(edges_y)-1])
