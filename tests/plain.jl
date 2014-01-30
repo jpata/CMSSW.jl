@@ -40,6 +40,8 @@ x = toq()
 println("wrote $(nrow(big_df)) events, $(length(names(big_df))) columns in $x seconds")
 
 big_df2 = TreeDataFrame("big_df.root", "rw")
+bdf = big_df2[:,:]
+@test nrow(bdf) == nrow(big_df)
 
 #cleanup
 rm("test.root")

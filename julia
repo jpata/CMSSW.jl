@@ -1,8 +1,8 @@
 #!/bin/bash
 uname -a
 echo "Julia+CMSSW wrapper"
-
-julia -E "versioninfo()"
+source ~/.bashrc
+which julia
 
 #use system python
 PYPATH=$(dirname `which python`)
