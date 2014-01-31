@@ -62,13 +62,24 @@ Base.ls(tf::TFile) = ccall(
     Void, (Ptr{Void}, ), tf.p,
 )
 
+type Branch{T}
+    x::Vector{T}
+    p_x::Ptr{Void} #pointer to TBranch
+end
+
+Base.write(t::Branch) = write(t.p_x)
+
+type NABranch{T}
+    value::Branch{T}
+    na::Branch{Bool}
+end
 
 type TTree
     p::Ptr{Void}
     name::String
     names::Vector{String}
     coltypes::Vector{Type}
-    branches::Associative
+    branches::Dict{Symbol, NABranch}
     file::TFile
 end
 
@@ -91,17 +102,6 @@ typemap = {
     Bool => "O"
 }
 
-type Branch{T}
-    x::Vector{T}
-    p_x::Ptr{Void} #pointer to TBranch
-end
-
-Base.write(t::Branch) = write(t.p_x)
-
-type NABranch{T}
-    value::Branch{T}
-    na::Branch{Bool}
-end
 
 function Base.write(t::NABranch)
     write(t.value)
@@ -151,7 +151,7 @@ Branch{T <: Number}(defval::T) = Branch{T}(T[defval], C_NULL)
 Branch{T <: ASCIIString}(defval::T) = Branch{Uint8}(convert(Vector{Uint8}, defval), C_NULL)
 Branch{T <: Any}(defval::T) = error("not implemented")
 
-null{T <: Number}(::Type{T}) = convert(T, 0.0)
+null{T <: Number}(::Type{T}) = convert(T, 0.0)::T
 null{T <: String}(::Type{T}) = bytestring(convert(Vector{Uint8}, zeros(512)))
 null{T <: Any}(::Type{T}) = error("not implemented for $T")
 null{T <: NAtype}(::Type{T}) = NA
@@ -195,7 +195,7 @@ function TTree(
         branches[symbol(cn)] = NABranch(x, na)
     end
     return TTree(
-        tree, name, convert(Vector{String}, names),
+        tree, name, convert(Vector{ASCIIString}, names),
         convert(Vector{Type}, coltypes),
         branches, tf
     )
@@ -210,28 +210,34 @@ function strcpy(a, b)
     )
 end
 
-function Base.setindex!{T <: ASCIIString}(tree::TTree, x::T, s::Symbol)
-    br = tree.branches[s]
-    #T = typeof(br).parameters[1]
-    strcpy(br.value.x, x)
-    br.na.x[1] = false
+#function Base.setindex!{T <: ASCIIString}(tree::TTree, x::T, s::Symbol)
+#    br = tree.branches[s]
+#    #T = typeof(br).parameters[1]
+#    strcpy(br.value.x, x)
+#    br.na.x[1] = false
+#end
+
+function Base.setindex!{T <: Number}(tree::TTree, x::NAtype, s::Symbol, tt::Type{T})
+    @assert s in keys(tree.branches)
+    br = tree.branches[s]::NABranch{T}
+    br.value.x[1] = null(T)::T
+    br.na.x[1] = true
 end
 
-function Base.setindex!{T <: Number}(tree::TTree, x::T, s::Symbol)
-    br = tree.branches[s]
-    #T = typeof(br).parameters[1]
-    #br.value.x[1] = convert(T, x)
+function Base.setindex!{T <: Number}(tree::TTree, x::T, s::Symbol, tt::Type{T})
+    @assert s in keys(tree.branches)
+    br = tree.branches[s]::NABranch{T}
     br.value.x[1] = x
     br.na.x[1] = false
 end
 
-function Base.setindex!{T <: NAtype}(tree::TTree, x::T, s::Symbol)
-    br = tree.branches[s]
-    for i=1:length(br.value.x)
-        br.value.x[i] = 0
-    end
-    br.na.x[1] = true
-end
+#function Base.setindex!{T <: NAtype}(tree::TTree, x::T, s::Symbol)
+#    br = tree.branches[s]
+#    for i=1:length(br.value.x)
+#        br.value.x[i] = 0
+#    end
+#    br.na.x[1] = true
+#end
 
 function coltype{T <: ColumnIndex}(tree::TTree, cn::T)
     br = tree.branches[symbol(cn)]
@@ -309,20 +315,31 @@ function Base.length(tree::TTree)
     )
 end
 
-function writetree(fn, df::AbstractDataFrame)
+function writetree(fn, df::AbstractDataFrame;progress=true)
     tf = TFile(fn, "RECREATE")
-    #println(names(df))
-    #println(types(df))
-    tree = TTree(tf, "dataframe", names(df), types(df))
-    #println(tree.branches |> keys |> collect) 
-    #reset_cache!(tree)
-    #add_cache!(tree, "*")
-    for i=1:nrow(df)
-        for cn in names(df)
-            tree[symbol(cn)] = NA #zero out (for strings)
-            tree[symbol(cn)] = df[i, cn]
+    const tree = TTree(tf, "dataframe", names(df), types(df))
+    n = nrow(df)
+
+    const nts = convert(
+        Vector{(Symbol, Type)},
+        collect(zip(
+            map(symbol, names(df)),
+            types(df)
+    )))
+    for i=1:n
+        
+        progress && (i % 1000 == 0) && print(".")
+        
+        if progress && (i % int(n/10) == 0)
+            println(10 * i/(int(n/10)), "%: $i ", toq())
+            tic()
         end
-        fill!(tree)
+        
+        for (cn::Symbol, ct::Type) in nts
+            tree[cn, ct] = df[i, cn]
+        end
+        x=fill!(tree)
+        #x<=0 || error("could not TTree::Fill row $i")
     end
     write(tree)
     close(tf)
