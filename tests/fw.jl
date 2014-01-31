@@ -32,12 +32,20 @@ const cos_theta = Source(
     InputTag(:cosTheta, :cosThetaLightJet, :STPOLSEL2), Handle(Float64)
 )
 
+const cos_theta_gen = Source(
+    InputTag(:cosThetaProducerTrueAll, :cosThetaLightJet, :STPOLSEL2), Handle(Float64)
+)
+
 const n_jets = Source(
     InputTag(:goodJetCount, symbol(""), :STPOLSEL2), Handle(Int32)
 )
 
 const n_tags = Source(
     InputTag(:bJetCount, symbol(""), :STPOLSEL2), Handle(Int32)
+)
+
+const genstring = Source(
+    InputTag(:decayTreeProducerMu, symbol(""), :STPOLSEL2), Handle(ASCIIString)
 )
 
 const hlts = ASCIIString[
@@ -76,6 +84,8 @@ for i=1:length(ev)
 
     nt = ev[n_tags]
 
+    gs = ev[genstring]
+
     #Loop over the muons
     for (pt, eta) in zip(mupt, mueta)
         sum_pt += pt
@@ -87,7 +97,8 @@ for i=1:length(ev)
     idx = where_file(ev)
     
     fname = get_current_file_name(ev)
-     
+    ctgen = ev[cos_theta_gen]
+    println("$ctgen $ct $gs")
     @test fname == testfile
 
     push!(ids, id)
