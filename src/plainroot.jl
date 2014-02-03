@@ -528,6 +528,19 @@ function new_th2d(
 
 end
 
+function set_axis_label(h::Ptr{Void}, label, n=1)
+    ccall(
+           (:set_axis_label, libplainroot),
+           Void,
+           (
+            Ptr{Void},
+            Cint,
+            Ptr{Uint8}
+            ),
+           h, n, convert(ASCIIString, label),
+        ) 
+end
+
 export close
 export writetree, readtree, ColumnIndex, coltype
 export set_branch_status!, reset_cache!, add_cache!
