@@ -1,5 +1,7 @@
 const libfwlite = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
-const WARN = false
+const WARN = false #should print warnings?
+
+
 using DataFrames
 
 #Try to load the FWLite libraries, warn the user in case it was impossible

@@ -9,16 +9,17 @@ import Base.Test
 import Base.get, Base.cd, Base.mkdir, Base.write, Base.close, Base.fill, Base.mkpath
 
 type TFile
-    p::Ptr{Void}
-    s::String
+    p::Ptr{Void} #pointer to TFile
+    s::String #file name
 end
 
 immutable TreeBranch
-    name::Ptr{Uint8}
-    dtype::Ptr{Uint8}
+    name::Ptr{Uint8} #pointer(const char *) of branch name
+    dtype::Ptr{Uint8} #pointer(const char *) of branch data type
     pbranch::Ptr{Void}
 end
 
+#Call new TFile(fname, op)
 function TFile(fname::String, op="")
     tf = ccall(
         (:new_tfile, libplainroot),
@@ -30,6 +31,7 @@ function TFile(fname::String, op="")
     return TFile(tf, fname)
 end
 
+#Call TFile::Close
 function Base.close(tf::TFile)
     @assert tf.p != C_NULL "TFile was already closed"
     ccall(
@@ -40,11 +42,12 @@ function Base.close(tf::TFile)
 end
 
 
+#Call TFile::Get(const char* key)
 Base.get(tf::TFile, key) = ccall(
     (:tfile_get, libplainroot),
     Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
 )
-
+#Call TFile::mkdir(const char* key)
 Base.mkdir(tf::Ptr{Void}, key) = ccall(
     (:tfile_mkdir, libplainroot),
     Ptr{Void}, (Ptr{Void}, Ptr{Uint8}), tf, string(key)
