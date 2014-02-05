@@ -11,8 +11,10 @@ isfile(testfile) || download("http://cms.hep.kbfi.ee/~joosep/test_100ev.root", t
 #Open the events file
 ev = Events(testfile)
 @test length(ev) == 100
+println("opened EDM events file with FWLITE: $testfile, N=$(length(ev))")
 
 sum_pt = 0.0
+#create a handle for muon Pt
 const mu_pt = Source(
     InputTag(:goodSignalMuonsNTupleProducer, :Pt, :STPOLSEL2), Handle(Vector{Cfloat})
 )
@@ -89,16 +91,19 @@ for i=1:length(ev)
     #Loop over the muons
     for (pt, eta) in zip(mupt, mueta)
         sum_pt += pt
+        println("mu pt=$pt, eta=$eta")
     end
 
     #run, lumi, event
     id = where(ev)
-    
+
+    #index of current file
     idx = where_file(ev)
+    println("n=$i ID=$id F=$idx")
     
     fname = get_current_file_name(ev)
     ctgen = ev[cos_theta_gen]
-    println("$ctgen $ct $gs")
+
     @test fname == testfile
 
     push!(ids, id)
