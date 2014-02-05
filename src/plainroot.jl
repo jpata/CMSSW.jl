@@ -189,6 +189,7 @@ function TTree(
 
     for (cn, ct) in zip(names, coltypes)
         #println(cn, " ", ct)
+        cn = string(cn)
         x = Branch(null(ct))
         na = Branch(false) #the branch which signifies if a value is available
 
@@ -213,12 +214,12 @@ function strcpy(a, b)
     )
 end
 
-#function Base.setindex!{T <: ASCIIString}(tree::TTree, x::T, s::Symbol)
-#    br = tree.branches[s]
-#    #T = typeof(br).parameters[1]
-#    strcpy(br.value.x, x)
-#    br.na.x[1] = false
-#end
+function Base.setindex!{T <: ASCIIString}(tree::TTree, x::T, s::Symbol, tt::Type{T})
+    br = tree.branches[s]
+    #T = typeof(br).parameters[1]
+    strcpy(br.value.x, x)
+    br.na.x[1] = false
+end
 
 function Base.setindex!{T <: Number}(tree::TTree, x::NAtype, s::Symbol, tt::Type{T})
     @assert s in keys(tree.branches)
@@ -320,7 +321,11 @@ end
 
 function writetree(fn, df::AbstractDataFrame;progress=true)
     tf = TFile(fn, "RECREATE")
-    const tree = TTree(tf, "dataframe", names(df), types(df))
+    const tree = TTree(
+        tf, "dataframe",
+        map(string, names(df)),
+        types(df)
+    )
     n = nrow(df)
 
     const nts = convert(
@@ -331,12 +336,12 @@ function writetree(fn, df::AbstractDataFrame;progress=true)
     )))
     for i=1:n
         
-        progress && (i % 1000 == 0) && print(".")
-        
-        if progress && (i % int(n/10) == 0)
-            println(10 * i/(int(n/10)), "%: $i ", toq())
-            tic()
-        end
+        #progress && (i % 1000 == 0) && print(".")
+        #
+        #if progress && (i % (int(n/10.0)+1) == 0)
+        #    println(10 * i/(int(n/10.0)), "%: $i ", toq())
+        #    tic()
+        #end
         
         for (cn::Symbol, ct::Type) in nts
             tree[cn, ct] = df[i, cn]
@@ -359,7 +364,7 @@ function readtree(fn; progress=false, maxrows=0)
     n = min(length(tree), n)
     progress && tic()
     progress && println("creating DataFrame with $n rows, $(length(tree.names)) columns")
-    df = DataFrame(tree.coltypes, convert(Vector{ByteString}, tree.names), n)
+    df = DataFrame(tree.coltypes, map(symbol, tree.names), n)
     progress && toc() 
     cns = map(symbol, names(df)) 
     progress && println("looping over $n events")

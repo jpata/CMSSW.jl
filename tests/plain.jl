@@ -15,22 +15,22 @@ df2 = readtree("test.root")
 @test isna(df[3, "z"])
 
 df2["asd"] = 3.0
-@test names(df2) == ["x", "y", "z", "asd"]
-@test df2["asd"] == [3.0, 3.0, 3.0]
+@test names(df2) == [:x, :y, :z, :asd]
+@test df2[:asd] == [3.0, 3.0, 3.0]
 
 df2[2, "asd"] = -1.0
-@test df2["asd"] == [3.0, -1.0, 3.0]
+@test df2[:asd] == [3.0, -1.0, 3.0]
 
 df2[3, "asd"] = NA
-@test isna(df2[3, "asd"])
+@test isna(df2[3, :asd])
 
-df2["x"] = df2["x"]
-@test names(df2) == ["x", "y", "z", "asd"]
+df2["x"] = df2[:x]
+@test names(df2) == [:x, :y, :z, :asd]
 
 df2[3, "x"] = 123.0
 
-@test all(df2[:, "y"] .== DataArray(ASCIIString["asd", "bsd", "xyz"], Bool[0,0,0]))
-@test all(df2["x"] .== [1.0, 2.0, 123.0])
+@test all(df2[:, :y] .== DataArray(ASCIIString["asd", "bsd", "xyz"], Bool[0,0,0]))
+@test all(df2[:x] .== [1.0, 2.0, 123.0])
 
 N=1000
 big_df = DataFrame(x=Int64[x for x in 1:N], y=Float64[10.0*rand() for x in 1:N], z=Float64[0.0001*rand() for x in 1:N])
