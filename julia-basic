@@ -1,14 +1,1 @@
-#!/bin/bash
-uname -a
-echo "Julia+CMSSW wrapper"
-source ~/.bashrc
-which julia
-
-#use system python
-PYPATH=$(dirname `which python`)
-
-#get the absolute path of this script
-scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-#set the CMSSW path and run Julia
-source $scriptdir/setenv.sh && PATH=$PYPATH:$PATH $LOCAL_JULIA_DIR/usr/bin/julia-basic -F $@
+./wrapper.sh julia-basic -F $@

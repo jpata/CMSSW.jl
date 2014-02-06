@@ -1,13 +1,1 @@
-#!/bin/bash
-uname -a
-echo "Julia called through Julia+CMSSW wrapper, exe path="`which julia`
-
-#use system python
-PYPATH=$(dirname `which python`)
-echo "using python from $PYPATH instead of CMSSW"
-
-#get the absolute path of this script
-scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-#set the CMSSW path
-source $scriptdir/setenv.sh && PATH=$PYPATH:$PATH $LOCAL_JULIA_DIR/usr/bin/julia-readline -F $@
+./wrapper.sh julia -F $@
