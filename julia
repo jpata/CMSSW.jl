@@ -1,1 +1,5 @@
-./wrapper.sh julia -F $@
+#!/bin/bash
+
+scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+$scriptdir/wrapper.sh julia-readline -F $@

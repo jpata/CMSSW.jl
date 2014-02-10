@@ -444,6 +444,7 @@ function new_th1d(
     edges::AbstractVector, #low_under, low_1, low_2, ... , low_over, high_over
     bins::AbstractVector, #under, c1, c2, ... , over
     errors::AbstractVector,
+    entries::AbstractVector,
     labels::AbstractVector=[]
 )
     @assert length(edges)==length(bins)+1
@@ -475,12 +476,17 @@ function new_th1d(
     hi = ccall(
        (:new_th1d, libplainroot),
        Ptr{Void},
-       (Ptr{Uint8}, Cuint, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Cdouble}, Ptr{Ptr{Uint8}}),
+       (Ptr{Uint8}, Cuint,
+        Ptr{Cdouble}, Ptr{Cdouble},
+        Ptr{Cdouble}, Ptr{Ptr{Uint8}},
+        Cdouble
+        ),
        name, length(edges),
        convert(Vector{Float64}, edges),
        convert(Vector{Float64}, bins),
        convert(Vector{Float64}, errors),
-       convert(Vector{ASCIIString}, labels)
+       convert(Vector{ASCIIString}, labels),
+       sum(entries)
     )
     return hi
 end
@@ -491,6 +497,7 @@ function new_th2d(
     edges_y::Array{Float64, 1},
     bins::Array{Float64, 2},
     errors::Array{Float64, 2},
+    entries::Array{Float64, 2},
     labels_x=[],
     labels_y=[],
 )
@@ -525,13 +532,15 @@ function new_th2d(
        (
         Ptr{Uint8},
         Cuint, Cuint,
-        Ptr{Cdouble}, Ptr{Cdouble},
-        Ptr{Ptr{Cdouble}}, Ptr{Ptr{Cdouble}},
-        Ptr{Ptr{Uint8}}, Ptr{Ptr{Uint8}}
+        Ptr{Cdouble}, Ptr{Cdouble}, #edges_x, edges_y
+        Ptr{Ptr{Cdouble}}, Ptr{Ptr{Cdouble}}, #bins, errors
+        Ptr{Ptr{Uint8}}, Ptr{Ptr{Uint8}}, #labels
+        Cdouble #nentries
         ),
        name, length(edges_x), length(edges_y),
        edges_x, edges_y, pbins, perrs,
-       convert(Vector{ASCIIString}, labels_x), convert(Vector{ASCIIString}, labels_y)
+       convert(Vector{ASCIIString}, labels_x), convert(Vector{ASCIIString}, labels_y),
+       sum(entries)
     ) 
 
 end

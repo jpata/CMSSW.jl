@@ -1,2 +1,2 @@
-run(`./julia tests/fw.jl`)
-run(`./julia tests/plain.jl`)
+run(`./julia tests/fwlite.jl`)
+run(`./julia tests/plainroot.jl`)

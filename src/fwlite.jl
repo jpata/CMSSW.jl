@@ -1,8 +1,10 @@
+#get the path path of the compiled C wrapper
 const libfwlite = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
-const WARN = false #should print warnings?
 
+ #should print warnings?
+const WARN = false
 
-using DataFrames
+using DataArrays
 
 #Try to load the FWLite libraries, warn the user in case it was impossible
 #Need to do cmsenv beforehand
@@ -38,6 +40,7 @@ immutable InputTag
 end
 
 #Create the methods for creating fwlite::Handle objects and getting objects by label using fwlite::Handle::getByLabel
+#TODO: this could be nicer
 for symb in [:vfloat, :double, :float, :int, :uint, :string]
     eval(quote
         $(symbol(string("get_by_label_", symb)))(ev::Ptr{Void}, h::Ptr{Void}, t::InputTag) = ccall(
@@ -69,9 +72,10 @@ immutable Handle
 end
 
 const type_table = {
-    :floats => Vector{Cfloat}
+    :floats => Vector{Cfloat},
 }
 
+#TODO: do this using macros
 Handle(t::Type{Vector{Cfloat}}) = Handle(new_handle_vfloat(), t)
 Handle(t::Type{Float64}) = Handle(new_handle_double(), t)
 Handle(t::Type{Float32}) = Handle(new_handle_float(), t)
@@ -82,7 +86,12 @@ Handle(s::Symbol) = Handle(type_table[s])
 
 #A Handle-InputTag pair
 immutable Source
+
+    #a name for the object to get from EDM
     tag::InputTag
+
+    #contains the pointer to the heap-allocated object that will be filled form disk
+    #strongly typed
     handle::Handle
 end
 
@@ -92,11 +101,17 @@ Source(label::Symbol, instance::Symbol, process::Symbol, t::Type=Vector{Cfloat})
 
 #The primary fwlite::ChainEvent wrapper
 type Events
-    fnames::Vector{String} #List of the file names that were loaded
-    ev::Ptr{Void} #A pointer to the underlying fwlite::ChainEvent
-    index::Int64 #The index of the current event
 
-    function Events(fnames)
+    #List of the file names that were loaded
+    fnames::Vector{String}
+
+    #A pointer to the underlying fwlite::ChainEvent
+    ev::Ptr{Void} 
+
+    #The index of the current event
+    index::Int64 
+
+    function Events(fnames::AbstractArray)
         println("Loading events from files:")
         i = 0
         for f in fnames
@@ -110,14 +125,6 @@ type Events
         )
         events = new(fnames, ev, 0)
 
-        # Get the list of products in the files
-        # for (dtype, label, instance, process) in get_branches(events)
-        #     try
-        #         #events.tags[(label, instance, process)] = (InputTag(label, instance, process), Handle(dtype))
-        #     catch e
-        #         #warn("tag $dtype, $label, $instance, $process not created: $e")
-        #     end
-        # end
         return events
     end
 end
@@ -149,7 +156,7 @@ function get_branches(ev::Events)
     return ret
 end
 
-#gets the index of the current file of the current event in a multi-file fwlite::ChainEvents
+#gets the filename of the current event in a multi-file fwlite::ChainEvents
 function get_current_file_name(ev::Events)
     ret = ccall(
         (:events_tfile_path, libfwlite),
@@ -158,6 +165,7 @@ function get_current_file_name(ev::Events)
     return split(bytestring(ret), ":")[1]
 end
 
+#gets the index of the current file of the current event in a multi-file fwlite::ChainEvents
 function where_file(ev::Events)
     return ccall(
         (:events_fileindex, libfwlite),
@@ -165,6 +173,7 @@ function where_file(ev::Events)
     ) + 1
 end
 
+#gets the linear index of the event in the file
 function where_event(ev::Events)
     return int(ccall(
         (:events_eventindex, libfwlite),
@@ -187,11 +196,10 @@ function to!(ev::Events, n::Integer)
             Bool, (Ptr{Void}, Clong), ev.ev, convert(Clong, n-1)
     )
     scanned || error("failed to scan to event $n")
-    #x = where_event(ev)
-    #n==x || warn("failed to scan to event $n!=$x")
     ev.index = n
 end
 
+#TODO: parametrize this
 function Base.getindex(ev::Events, tag::InputTag, handle::Handle)
     ret = C_NULL
     if handle.t == Vector{Cfloat}
@@ -276,43 +284,43 @@ function where(ev::Events)
     return (run, lumi, event)
 end
 
-#Parallel processing related helpers
-chunk(n, c, maxn) = (sum([n]*(c-1))+1):(min(n*c, maxn))
-chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
+# #Parallel processing related helpers
+# chunk(n, c, maxn) = (sum([n]*(c-1))+1):(min(n*c, maxn))
+# chunks(csize, nmax) = [chunk(csize, i, nmax) for i=1:convert(Int64, ceil(nmax/csize))]
 
-macro onworkers(targets, ex)
-    quote
-        @sync begin
-            for w in $targets
-                @spawnat w eval(Main, $(Expr(:quote,ex)))
-            end
-        end
-    end
-end
+# macro onworkers(targets, ex)
+#     quote
+#         @sync begin
+#             for w in $targets
+#                 @spawnat w eval(Main, $(Expr(:quote,ex)))
+#             end
+#         end
+#     end
+# end
 
 
-#Applied the function func across a globally(across workers in the top namespace) defined events
-function process_parallel(func::Function, events_ex::Symbol, targets::Vector{Int64}, args...)
-    newsymb = :local_tree
-    @eval @onworkers $targets const $newsymb = eval($events_ex)
-    ntree = @fetchfrom targets[1] length(eval(Main, newsymb))
-    chunksize = int(ntree / length(targets))
-    ranges = chunks(chunksize, ntree)
+# #Applied the function func across a globally(across workers in the top namespace) defined events
+# function process_parallel(func::Function, events_ex::Symbol, targets::Vector{Int64}, args...)
+#     newsymb = :local_tree
+#     @eval @onworkers $targets const $newsymb = eval($events_ex)
+#     ntree = @fetchfrom targets[1] length(eval(Main, newsymb))
+#     chunksize = int(ntree / length(targets))
+#     ranges = chunks(chunksize, ntree)
 
-    nr = 1
-    refs = RemoteRef[]
-    for r in ranges
-        nproc = targets[mod1(nr, length(targets))]
-        println("submitting chunk $(r.start):$(r.start+r.len-1) to worker $nproc, tree name=$newsymb")
-        rr = remotecall(
-            nproc,
-            _r -> map(n -> func(n, eval(Main, newsymb), args...), [_r]), r
-        )
-        push!(refs, rr)
-        nr += 1
-    end
-    return (ntree, refs)
-end
+#     nr = 1
+#     refs = RemoteRef[]
+#     for r in ranges
+#         nproc = targets[mod1(nr, length(targets))]
+#         println("submitting chunk $(r.start):$(r.start+r.len-1) to worker $nproc, tree name=$newsymb")
+#         rr = remotecall(
+#             nproc,
+#             _r -> map(n -> func(n, eval(Main, newsymb), args...), [_r]), r
+#         )
+#         push!(refs, rr)
+#         nr += 1
+#     end
+#     return (ntree, refs)
+# end
 
 #gets the total counter value of a named edm::MergeableCounter across files
 function get_counter_sum{T <: String}(fnames::AbstractVector{T}, cname)
@@ -334,6 +342,6 @@ export InputTag, Handle, EventID, Source
 export Events
 export to!, list_branches
 export where, where_file, where_event
-export @onworkers, process_parallel
+# export @onworkers, process_parallel
 export get_counter_sum, passes_hlt
 export get_current_file_name, print_event_id
