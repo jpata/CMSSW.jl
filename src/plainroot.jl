@@ -1,4 +1,6 @@
 const libplainroot = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libplainroot")
+#const libplainroot = joinpath("deps/ntuple/", "libplainroot_jl")
+
 using DataArrays, DataFrames
 import DataArrays.NAtype
 import Base.close
@@ -7,6 +9,13 @@ typealias ColumnIndex Union(Real, String, Symbol)
 
 import Base.Test
 import Base.get, Base.cd, Base.mkdir, Base.write, Base.close, Base.fill, Base.mkpath
+
+#A C struct for a variable size array
+immutable CArray
+    start::Ptr{Ptr{Void}} #Pointer to the start of the array
+    size::Cint #Size of an element in the array
+    n_elems::Cint #Length of the array
+end
 
 type TFile
     p::Ptr{Void} #pointer to TFile
@@ -324,7 +333,7 @@ function writetree(fn, df::AbstractDataFrame;progress=true)
     const tree = TTree(
         tf, "dataframe",
         map(string, names(df)),
-        types(df)
+        eltypes(df)
     )
     n = nrow(df)
 
@@ -332,7 +341,7 @@ function writetree(fn, df::AbstractDataFrame;progress=true)
         Vector{(Symbol, Type)},
         collect(zip(
             map(symbol, names(df)),
-            types(df)
+            eltypes(df)
     )))
     for i=1:n
         
@@ -444,8 +453,8 @@ function new_th1d(
     edges::AbstractVector, #low_under, low_1, low_2, ... , low_over, high_over
     bins::AbstractVector, #under, c1, c2, ... , over
     errors::AbstractVector,
-    entries::AbstractVector,
-    labels::AbstractVector=[]
+    entries::AbstractVector=Float64[],
+    labels::AbstractVector=ASCIIString[]
 )
     @assert length(edges)==length(bins)+1
     @assert length(edges)==length(errors)+1
@@ -497,7 +506,7 @@ function new_th2d(
     edges_y::Array{Float64, 1},
     bins::Array{Float64, 2},
     errors::Array{Float64, 2},
-    entries::Array{Float64, 2},
+    entries::Array{Float64, 2}=Array(Float64, 0,0),
     labels_x=[],
     labels_y=[],
 )
@@ -557,6 +566,8 @@ function set_axis_label(h::Ptr{Void}, label, n=1)
            h, n, convert(ASCIIString, label),
         ) 
 end
+
+include("tmva.jl")
 
 export close
 export writetree, readtree, ColumnIndex, coltype

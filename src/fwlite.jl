@@ -17,13 +17,6 @@ catch e
     rethrow(e)
 end
 
-#A C struct for a variable size array
-immutable CArray
-    start::Ptr{Ptr{Void}} #Pointer to the start of the array
-    size::Cint #Size of an element in the array
-    n_elems::Cint #Length of the array
-end
-
 #A wrapper for edm::InputTag
 immutable InputTag
     p::Ptr{Void} #Pointer to the underlying InputTag object
