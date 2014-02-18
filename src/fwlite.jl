@@ -1,5 +1,6 @@
 #get the path path of the compiled C wrapper
 const libfwlite = joinpath(ENV["CMSSW_BASE"], "lib", ENV["SCRAM_ARCH"], "libfwlevents_jl")
+import Base.names
 
  #should print warnings?
 const WARN = false
@@ -123,7 +124,7 @@ type Events
 end
 
 function list_branches(ev::Events)
-    for (dtype, label, instance, process) in get_branches(ev)
+    for (dtype, label, instance, process) in names(ev)
         println("$label:$instance:$process -> $dtype")
     end
 end
@@ -131,7 +132,7 @@ end
 Events(fname::ASCIIString) = Events([fname])
 
 #Returns the list of products in the files
-function get_branches(ev::Events)
+function names(ev::Events)
     parr = ccall(
         (:get_branches, libfwlite),
         Ptr{CArray}, (Ptr{Void}, ), ev.ev
