@@ -3,13 +3,16 @@ using DataFrames
 import DataFrames.nrow, DataFrames.ncol, DataFrames.names, DataFrames.types
 import Base.getindex, Base.setindex!, Base.display, Base.show
 
-type TreeDataFrame <: AbstractDataFrame
+#wrapper around TTree that supports getindex functionality
+#tree branches must be of elementary type
+#setindex currently not supported: http://root.cern.ch/root/roottalk/roottalk97/1192.html
+immutable TreeDataFrame <: AbstractDataFrame
     file::ROOT.TFile
     tree::ROOT.TTree
 end
 
+const modetable = {"r"=>"READ", "rw"=>"UPDATE", "w"=>"RECREATE"}
 function TreeDataFrame(fn::String, mode="r")
-    const modetable = {"r"=>"READ", "rw"=>"UPDATE", "w"=>"RECREATE"}
     file = ROOT.TFile(string(fn), modetable[mode])
     tree = ROOT.TTree(file, "dataframe")
     return TreeDataFrame(file, tree)
@@ -19,7 +22,7 @@ TreeDataFrame(df::TreeDataFrame) = TreeDataFrame(df.file.s)
 
 DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
 DataFrames.ncol(df::TreeDataFrame) = length(df.tree.names)
-DataFrames.names(df::TreeDataFrame) = df.tree.names
+DataFrames.names(df::TreeDataFrame) = map(symbol, df.tree.names)
 
 function Base.show(io::IO, df::TreeDataFrame) 
     show(io, df[1:5, :])
