@@ -12,28 +12,32 @@ df2 = readtree("test.root")
 
 @test nrow(df2)==nrow(df)
 @test names(df2)==names(df)
-@test isna(df[3, "z"])
+@test isna(df[3, :z])
 
-df2["asd"] = 3.0
+df2[:asd] = 3.0
 @test names(df2) == [:x, :y, :z, :asd]
 @test df2[:asd] == [3.0, 3.0, 3.0]
 
-df2[2, "asd"] = -1.0
+df2[2, :asd] = -1.0
 @test df2[:asd] == [3.0, -1.0, 3.0]
 
-df2[3, "asd"] = NA
+df2[3, :asd] = NA
 @test isna(df2[3, :asd])
 
-df2["x"] = df2[:x]
+df2[:x] = df2[:x]
 @test names(df2) == [:x, :y, :z, :asd]
 
-df2[3, "x"] = 123.0
+df2[3, :x] = 123.0
 
 @test all(df2[:, :y] .== DataArray(ASCIIString["asd", "bsd", "xyz"], Bool[0,0,0]))
 @test all(df2[:x] .== [1.0, 2.0, 123.0])
 
-N=1000
-big_df = DataFrame(x=Int64[x for x in 1:N], y=Float64[10.0*rand() for x in 1:N], z=Float64[0.0001*rand() for x in 1:N])
+N = 1000000
+big_df = DataFrame(
+	x=Int64[x for x in 1:N],
+	y=Float64[10.0*rand() for x in 1:N],
+	z=Float64[0.0001*rand() for x in 1:N]
+)
 tic()
 writetree("big_df.root", big_df)
 x = toq()
@@ -51,12 +55,14 @@ cd(tf)
 
 hi = new_th1d("myhist1d_1", linspace(-1,1, 10), [100*i for i=1:9], [10*i for i=1:9])
 write(hi)
+@test get_contents_errors(hi) == ([100*i for i=1:9], [10*i for i=1:9])
 
 hi = new_th1d("myhist1d_2",
 	vcat(-Inf, [-1.0, 0.0, 1.0], Inf),
 	[100*i for i=1:4],
 	[10*i for i=1:4]
 )
+@test get_contents_errors(hi) == ([100*i for i=1:4], [10*i for i=1:4])
 write(hi)
 
 cont  = zeros(Float64, 4,4)
@@ -71,6 +77,7 @@ hi = new_th2d("myhist2d_1",
 	vcat(-Inf, [-1.0, 0.0, 1.0], Inf), vcat(-Inf, [-1.0, 0.0, 1.0], Inf),
 	cont, err,
 )
+@test get_contents_errors(hi) == (cont, err)
 write(hi)
 
 cont  = zeros(Float64, 4,9)
@@ -87,5 +94,6 @@ hi = new_th2d("myhist2d_2",
 	cont, err,
 )
 write(hi)
+@test get_contents_errors(hi) == (cont, err)
 
 close(tf)
