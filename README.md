@@ -1,7 +1,9 @@
+Note: for a work-in-progress wrapper for plain ROOT, see https://github.com/jpata/ROOT.jl.
+
 CMSSW.jl
 =======
 
-A toy experiment interfacing CMSSW (http://root.cern.ch) and Julia (http://julialang.org) through FWLite. Note that this is highly experimental, very much WIP and expected to change.
+A toy experiment interfacing CMSSW and Julia (http://julialang.org) through FWLite. Note that this is highly experimental, very much WIP and expected to change.
 
 Julia is a quickly-evolving language for technical computing which executes at near-C speeds on LLVM. CMSSW is a data analysis library widely used at experiments at CERN for HEP data analyses. Traditionally, CMSSW is accessed through the C++ interface, however many analysis tasks can be more succintly expressed and evaluated in a more high level language. Julia provides the much of the flexibility of Python with much of the speed of bare-metal C.
 
