@@ -1,4 +1,4 @@
-using ROOT
+using CMSSW
 using DataFrames
 import DataFrames.nrow, DataFrames.ncol, DataFrames.names, DataFrames.types
 import Base.getindex, Base.setindex!, Base.display, Base.show
@@ -7,14 +7,14 @@ import Base.getindex, Base.setindex!, Base.display, Base.show
 #tree branches must be of elementary type
 #setindex currently not supported: http://root.cern.ch/root/roottalk/roottalk97/1192.html
 immutable TreeDataFrame <: AbstractDataFrame
-    file::ROOT.TFile
-    tree::ROOT.TTree
+    file::CMSSW.TFile
+    tree::CMSSW.TTree
 end
 
 const modetable = {"r"=>"READ", "rw"=>"UPDATE", "w"=>"RECREATE"}
 function TreeDataFrame(fn::String, mode="r")
-    file = ROOT.TFile(string(fn), modetable[mode])
-    tree = ROOT.TTree(file, "dataframe")
+    file = CMSSW.TFile(string(fn), modetable[mode])
+    tree = CMSSW.TTree(file, "dataframe")
     return TreeDataFrame(file, tree)
 end
 
@@ -46,7 +46,7 @@ DataFrames.types(df::TreeDataFrame) = [coltype(df, x) for x=1:length(names(df))]
 
 function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::ColumnIndex, doget=true)
     cn = colname(df, col_ind)
-    doget && ROOT.getentry!(df.tree, row_ind)
+    doget && CMSSW.getentry!(df.tree, row_ind)
     return df.tree[cn]
 end
 
@@ -109,7 +109,7 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(
         add_cache!(df.tree, "$(cn)*")
     end
     for ri in row_ind
-        ROOT.getentry!(df.tree, ri)
+        CMSSW.getentry!(df.tree, ri)
 
         #get all the column values
         for ci in col_inds

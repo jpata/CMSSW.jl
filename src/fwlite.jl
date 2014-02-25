@@ -13,7 +13,7 @@ try
     dlopen(libfwlite)
 catch e
     println("could not load $libfwlite: $e")
-    path = joinpath(Pkg.dir(), "ROOT.jl", "src", "CMSSW")
+    path = joinpath(Pkg.dir(), "CMSSW.jl", "src", "CMSSW")
     warn("did you do 'cmsenv' CMSSW in $path ?")
     rethrow(e)
 end

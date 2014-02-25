@@ -2,7 +2,7 @@ println("Running with workers=[", join(workers(), ","), "], controller=$(myid())
 
 @everywhere begin
 
-    using ROOT
+    using CMSSW
 
     treepaths = {
         "file://dat/test_edm.root"

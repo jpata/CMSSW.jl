@@ -1,4 +1,4 @@
-module ROOT
+module CMSSW
 	include("plainroot.jl")
     include("fwlite.jl")
     include("dataframe.jl")

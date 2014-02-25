@@ -1,10 +1,10 @@
-using ROOT
+using CMSSW
 using DataFrames
 
 using Base.Test
 
 #Download the test file 
-testfile = joinpath(Pkg.dir(), "ROOT", "dat", "test_edm.root")
+testfile = joinpath(Pkg.dir(), "CMSSW", "dat", "test_edm.root")
 isfile(testfile) || download("http://cms.hep.kbfi.ee/~joosep/test_100ev.root", testfile)
 
 #Open the events file
