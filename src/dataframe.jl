@@ -6,16 +6,17 @@ import Base.getindex, Base.setindex!, Base.display, Base.show
 #wrapper around TTree that supports getindex functionality
 #tree branches must be of elementary type
 #setindex currently not supported: http://root.cern.ch/root/roottalk/roottalk97/1192.html
-immutable TreeDataFrame <: AbstractDataFrame
+type TreeDataFrame <: AbstractDataFrame
     file::CMSSW.TFile
     tree::CMSSW.TTree
+    doget::Bool
 end
 
 const modetable = {"r"=>"READ", "rw"=>"UPDATE", "w"=>"RECREATE"}
 function TreeDataFrame(fn::String, mode="r")
     file = CMSSW.TFile(string(fn), modetable[mode])
     tree = CMSSW.TTree(file, "dataframe")
-    return TreeDataFrame(file, tree)
+    return TreeDataFrame(file, tree, true)
 end
 
 TreeDataFrame(df::TreeDataFrame) = TreeDataFrame(df.file.s)
@@ -44,9 +45,9 @@ end
 
 DataFrames.types(df::TreeDataFrame) = [coltype(df, x) for x=1:length(names(df))] 
 
-function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::ColumnIndex, doget=true)
+function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::ColumnIndex)
     cn = colname(df, col_ind)
-    doget && CMSSW.getentry!(df.tree, row_ind)
+    df.doget && CMSSW.getentry!(df.tree, row_ind)
     return df.tree[cn]
 end
 
