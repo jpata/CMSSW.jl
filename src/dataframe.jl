@@ -23,31 +23,38 @@ TreeDataFrame(df::TreeDataFrame) = TreeDataFrame(df.file.s)
 
 DataFrames.nrow(df::TreeDataFrame) = length(df.tree)
 DataFrames.ncol(df::TreeDataFrame) = length(df.tree.names)
-DataFrames.names(df::TreeDataFrame) = map(symbol, df.tree.names)
+DataFrames.names(df::TreeDataFrame) = collect(map(symbol, df.tree.names))
 
 function Base.show(io::IO, df::TreeDataFrame) 
     show(io, df[1:5, :])
 end
 
 function colname{T <: Integer}(df::TreeDataFrame, col_ind::T)
+    (col_ind > 0 && col_ind <= length(names(df))) || error("index out of range: $col_ind ! in [1, $(length(names(df)))]") 
     return names(df)[col_ind]
 end
 
-function colname{T <: ColumnIndex}(df::TreeDataFrame, col_ind::T)
+function colname{T <: Symbol}(df::TreeDataFrame, col_ind::T)
     return string(col_ind) 
 end
 
 function coltype(df::TreeDataFrame, col_ind::Integer)
-    ci = find(x -> x == colname(df, col_ind), names(df))
     cts = df.tree.coltypes
-    return cts[ci[1]]
+    return cts[col_ind]
+end
+
+function coltype(df::TreeDataFrame, col::Symbol)
+    col in names(df) || error("$col is not in dataframe columns: $(names)")
+    ci = findfirst(names(df), col)
+    coltype(df, ci)
 end
 
 DataFrames.types(df::TreeDataFrame) = [coltype(df, x) for x=1:length(names(df))] 
 
-function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::ColumnIndex)
+function Base.getindex{R <: Real}(df::TreeDataFrame, row_ind::R, col_ind::ColumnIndex, doget=false)
     cn = colname(df, col_ind)
-    df.doget && CMSSW.getentry!(df.tree, row_ind)
+     
+    (doget || df.doget) && CMSSW.getentry!(df.tree, row_ind)
     return df.tree[cn]
 end
 
@@ -90,7 +97,7 @@ function Base.getindex{T <: ColumnIndex}(df::TreeDataFrame, ba::BitArray{1}, col
     return df[rows, col_ind]
 end
 
-function Base.getindex{R <: Real, T <: ColumnIndex}(
+function Base.getindex{R <: Integer, T <: ColumnIndex}(
         df::TreeDataFrame,
         row_ind::AbstractVector{R}, 
         col_inds::AbstractVector{T}
@@ -109,7 +116,7 @@ function Base.getindex{R <: Real, T <: ColumnIndex}(
         set_branch_status!(df.tree, "$(cn)*", true)
         add_cache!(df.tree, "$(cn)*")
     end
-    for ri in row_ind
+    for ri::R in row_ind
         CMSSW.getentry!(df.tree, ri)
 
         #get all the column values
