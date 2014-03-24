@@ -260,6 +260,26 @@ function writetree(fn, df::AbstractDataFrame;progress=true)
     close(tf)
 end
 
+
+function writetree_temp(outfile, df::DataFrame)
+    tempf = mktemp()[1]
+    print("writing to $tempf...");writetree(tempf, df);println("done")
+    
+    for i=1:5
+        try
+            println("cleaning $outfile...");isfile(outfile) && rm(outfile)
+            println("copying...");cp(tempf, outfile)
+            s = stat(outfile)
+            s.size == 0 && error("file corrupted")
+            break
+        catch err
+            warn("$err: retrying after sleep")
+            sleep(5)
+        end
+    end
+end
+
+
 function readtree(fn; progress=false, maxrows=0)
     tf = TFile(fn, "READ")
     tree = TTree(tf, "dataframe")
@@ -322,3 +342,5 @@ function ttree_get_branches(ttree::Ptr{Void})
     arr = unsafe_load(out)
     return to_arr(arr, TreeBranch)
 end
+
+export writetree_temp
