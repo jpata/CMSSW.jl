@@ -117,6 +117,7 @@ type Events
             (:new_chain_event, libfwlite),
             Ptr{Void}, (Ptr{Ptr{Uint8}}, Cuint), convert(Vector{ASCIIString}, fnames), length(fnames)
         )
+        ev != C_NULL || error("could not open events: ptr=$ev")
         events = new(fnames, ev, 0)
 
         return events
