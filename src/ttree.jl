@@ -75,7 +75,7 @@ end
 Branch{T <: Number}(defval::T) = Branch{T}(T[defval], C_NULL)
 #Branch{T <: ASCIIString}(defval::T) = Branch{T}([defval], C_NULL)
 Branch{T <: ASCIIString}(defval::T) = Branch{Uint8}(convert(Vector{Uint8}, defval), C_NULL)
-Branch{T <: Any}(defval::T) = error("not implemented")
+Branch{T <: Any}(defval::T) = error("not implemented for type=$(T)")
 
 null{T <: Number}(::Type{T}) = convert(T, 0.0)::T
 null{T <: String}(::Type{T}) = bytestring(convert(Vector{Uint8}, zeros(512)))
