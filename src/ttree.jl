@@ -75,12 +75,13 @@ end
 Branch{T <: Number}(defval::T) = Branch{T}(T[defval], C_NULL)
 #Branch{T <: ASCIIString}(defval::T) = Branch{T}([defval], C_NULL)
 Branch{T <: ASCIIString}(defval::T) = Branch{Uint8}(convert(Vector{Uint8}, defval), C_NULL)
+Branch{T <: NAtype}(defval::T) = Branch(0)
 Branch{T <: Any}(defval::T) = error("not implemented for type=$(T)")
 
 null{T <: Number}(::Type{T}) = convert(T, 0.0)::T
 null{T <: String}(::Type{T}) = bytestring(convert(Vector{Uint8}, zeros(512)))
 null{T <: Any}(::Type{T}) = error("not implemented for $T")
-null{T <: NAtype}(::Type{T}) = NA
+null{T <: NAtype}(::Type{T}) = 0
 
 function TTree(
     tf::TFile, name,
@@ -150,15 +151,11 @@ function Base.setindex!{T <: Number}(tree::TTree, x::T, s::Symbol, tt::Type{T})
     br.na.x[1] = false
 end
 
-
-
-#function Base.setindex!{T <: NAtype}(tree::TTree, x::T, s::Symbol)
-#    br = tree.branches[s]
-#    for i=1:length(br.value.x)
-#        br.value.x[i] = 0
-#    end
-#    br.na.x[1] = true
-#end
+function Base.setindex!{T <: NAtype}(tree::TTree, x::T, s::Symbol, tt::Type{T})
+    br = tree.branches[s]
+    br.value.x[1] = 0
+    br.na.x[1] = true
+end
 
 function coltype{T <: ColumnIndex}(tree::TTree, cn::T)
     br = tree.branches[symbol(cn)]
