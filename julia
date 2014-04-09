@@ -2,4 +2,4 @@
 
 scriptdir="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-$scriptdir/wrapper.sh julia-readline -F $@
+$scriptdir/wrapper.sh julia -F $@
