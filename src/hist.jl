@@ -48,6 +48,9 @@ function new_th1d(
     @assert length(edges)==length(bins)+1
     @assert length(edges)==length(errors)+1
 
+    any((bins .> 0) & (errors .> bins)) &&
+        warn("errors > entries: \n", string(hcat(bins, errors)))
+
     #remove underflow low and overflow high edges
     edges = deepcopy(edges[2:length(edges)-1])
 
@@ -151,7 +154,7 @@ function set_axis_label(h::THist, label, n::Integer=1)
             Cint,
             Ptr{Uint8}
         ), h.p, n, convert(ASCIIString, label),
-    ) 
+    )
 end
 
 
