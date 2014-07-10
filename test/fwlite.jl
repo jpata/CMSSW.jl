@@ -4,14 +4,14 @@ using DataFrames
 using Base.Test
 
 
-@test_throws Events(["not_existent.root"])
+@test_throws ErrorException Events(["not_existent.root"])
 
 #Download the test file 
 testfile = string(joinpath(Pkg.dir(), "CMSSW", "dat", "test_edm.root"))
 isfile(testfile) || download("http://cms.hep.kbfi.ee/~joosep/test_100ev.root", testfile)
 
-@test_throws Events([testfile, "not_existent.root"])
-@test_throws Events(["not_existent.root", testfile])
+@test_throws ErrorException Events([testfile, "not_existent.root"])
+@test_throws ErrorException Events(["not_existent.root", testfile])
 
 #Open the events file
 ev = Events(testfile)
