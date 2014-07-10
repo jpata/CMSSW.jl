@@ -125,9 +125,11 @@ type Events
 end
 
 function list_branches(ev::Events)
+    ret = Any[]
     for (dtype, label, instance, process) in names(ev)
-        println("$label:$instance:$process -> $dtype")
+        push!(ret, (dtype, label, instance, process))
     end
+    return ret
 end
 
 Events(fname::ASCIIString) = Events([fname])
@@ -332,6 +334,11 @@ function passes_hlt{T <: String}(ev::Events, hlts::AbstractVector{T})
     )
 end
 
+const CPP_JL_TYPE = {
+    :double => Float64,
+    :int    => Int32
+}
+
 export fwlite_initialize
 export InputTag, Handle, EventID, Source
 export Events
@@ -340,3 +347,4 @@ export where, where_file, where_event
 # export @onworkers, process_parallel
 export get_counter_sum, passes_hlt
 export get_current_file_name, print_event_id
+export CPP_JL_TYPE
