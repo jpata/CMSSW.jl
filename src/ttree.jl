@@ -310,7 +310,7 @@ function readtree(fn; progress=false, maxrows=0)
 end
 
 function to_arr{T <: TreeBranch}(arr::CArray, ::Type{T})
-    p = pointer(TreeBranch, arr.start)
+    p = convert(Ptr{TreeBranch}, arr.start)
     struct_arr = pointer_to_array(p, (convert(Int64, arr.n_elems),))
     out = Any[]
     for s in struct_arr
