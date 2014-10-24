@@ -339,6 +339,17 @@ const CPP_JL_TYPE = {
     :int    => Int32
 }
 
+function ifpresent(arr, n::Integer=1)
+    if all(isna(arr)) 
+        return NA
+    end
+    if length(arr)==n
+        return arr[n]
+    else
+        return NA
+    end
+end
+
 export fwlite_initialize
 export InputTag, Handle, EventID, Source
 export Events
@@ -347,4 +358,4 @@ export where, where_file, where_event
 # export @onworkers, process_parallel
 export get_counter_sum, passes_hlt
 export get_current_file_name, print_event_id
-export CPP_JL_TYPE
+export CPP_JL_TYPE, ifpresent
