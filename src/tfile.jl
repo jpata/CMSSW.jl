@@ -45,7 +45,7 @@ Base.cd(tf::TFile, key="") = ccall(
     Bool, (Ptr{Void}, Ptr{Uint8}), tf.p, string(key)
 )
 
-Base.ls(tf::TFile) = ccall(
+ls(tf::TFile) = ccall(
     (:tfile_ls, libplainroot),
     Void, (Ptr{Void}, ), tf.p,
 )
